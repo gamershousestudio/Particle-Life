@@ -128,6 +128,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 272121486}
+  - component: {fileID: 272121488}
+  - component: {fileID: 272121487}
   m_Layer: 0
   m_Name: Particle Simulator
   m_TagString: Untagged
@@ -150,6 +152,61 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &272121487
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 272121485}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 907d3abe2de09944ea955c7db5c353fa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  numberOfAquaParticles: 10
+  numberOfBlueParticles: 10
+  numberOfBrownParticles: 10
+  numberOfDarkGreenParticles: 10
+  numberOfDarkRedParticles: 10
+  numberOfGreenParticles: 10
+  numberOfMagentaParticles: 10
+  numberOfNavyBlueParticles: 10
+  numberOfOrangeParticles: 10
+  numberOfPinkParticles: 10
+  numberOfPurpleParticles: 10
+  numberOfRedParticles: 10
+  numberOfTealParticles: 10
+  numberOfWhiteParticles: 10
+  numberOfYellowParticles: 10
+  aquaParticle: {fileID: 2213238996492987358, guid: 6e06263a3c45ca44bb6c019b6fad290b, type: 3}
+  blueParticle: {fileID: 9123786934099399593, guid: 63cd428b870973643b2ba8d78a0183be, type: 3}
+  brownParticle: {fileID: 7377002056758385514, guid: acf26250c98716143b18cd587d93d3a8, type: 3}
+  darkGreenParticle: {fileID: 8514901140412625102, guid: c306c550accfc8542b4212bfb1fc7256, type: 3}
+  darkRedParticle: {fileID: 4540591887266871134, guid: 52165eabbd7183e4e94808076bb9cef4, type: 3}
+  greenParticle: {fileID: 6432897486776634053, guid: a150053ddc756274892f8fde75667057, type: 3}
+  magentaParticle: {fileID: 678775230861417284, guid: 2e87223b9f0e6d14db6a487d6c8b69bc, type: 3}
+  navyBlueParticle: {fileID: 3100220746970808572, guid: 9796e72ed533ab24692b29ed89c41dc1, type: 3}
+  orangeParticle: {fileID: 8351917370341869925, guid: a2f26dc5794b9984296a19140230dcea, type: 3}
+  pinkParticle: {fileID: 1499533088107343817, guid: 271f50a348908f44aaa0c9d1c27f0c27, type: 3}
+  purpleParticle: {fileID: 6860447077782468018, guid: a524a0c3d5d905045b2736ed9eb64ed5, type: 3}
+  redParticle: {fileID: 6118331280782666263, guid: badb7548ec936af4faa70db4084fed9b, type: 3}
+  tealParticle: {fileID: 5525562353825316632, guid: f50a969487073c34f965e1b758dfa901, type: 3}
+  whiteParticle: {fileID: 1180742757090447200, guid: 00dcf864788245c4b926c581a74427f9, type: 3}
+  yellowParticle: {fileID: 6462595286322685175, guid: 14f5849db65f09548a8f4a61e7b2eee4, type: 3}
+--- !u!114 &272121488
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 272121485}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb9f68dbcd821f9408801b22479ab7d6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  particles: []
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
