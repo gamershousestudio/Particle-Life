@@ -1,4 +1,3 @@
-using Unity.VisualScripting.Dependencies.Sqlite;
 using UnityEngine;
 
 public class Particle : MonoBehaviour
@@ -6,35 +5,32 @@ public class Particle : MonoBehaviour
 
     // Interaction variables
     [Header("Interaction Variables")]
-    
-    [HideInInspector] public float repelForce;
-    [HideInInspector] public float repelRadius;
-    [HideInInspector] public float interactForce;
-    [HideInInspector] public float interactRadius;
+
+    public float repelForce;
+    public float repelRadius;
+    public float interactForce;
+    public float interactRadius;
+    public int index;
 
     public float Interact(float distance)
     {
-        // Calculates the interaction force
-        if (distance <= interactForce / 2)
-        {
-            float slope = repelRadius / interactForce;
-
-            return distance * slope;
-        }
-        else
-        {
-            float slope = interactForce / interactRadius;
-
-            return distance * slope;
-        }
+        if (distance >= interactRadius) { return 0; }
+        float t = distance / interactRadius;
+        return -SmootherStep(t) * interactForce;
     }
 
-    // Repels particles when they get too close
     public float Repel(float distance)
     {
-        // Calculates the repel force
-        float slope = repelForce / repelRadius;
+        if (distance >= repelRadius) { return 0; }
+        float t = distance / repelRadius;
+        return SmootherStep(t) * repelForce;
+    }
 
-        return distance * slope;
+    // Decreases the derivative to minimize sudden change
+    float SmootherStep(float t)
+    {
+        // Clamped to [0,1]
+        t = Mathf.Clamp01(t);
+        return 1 - (6 * Mathf.Pow(t, 5) - 15 * Mathf.Pow(t, 4) + 10 * Mathf.Pow(t, 3));
     }
 }

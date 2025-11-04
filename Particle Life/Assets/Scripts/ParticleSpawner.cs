@@ -6,8 +6,8 @@ public class ParticleSpawner : MonoBehaviour
     // Spawning variables
     [Header("Spawning Variables")]
 
-    public float xRange;
-    public float yRange;
+    [HideInInspector] public float xRange = 3.557491f / 2;
+    [HideInInspector] public float yRange = 2f / 2;
 
     public float sceneSize;
 
@@ -72,6 +72,8 @@ public class ParticleSpawner : MonoBehaviour
     {
         Camera cam = Camera.main;
         cam.orthographicSize = sceneSize;
+
+        transform.GetChild(0).GetComponent<Boundary>().size = this.sceneSize;
     }
 
     // Spawns every particle
@@ -120,8 +122,9 @@ public class ParticleSpawner : MonoBehaviour
             inst.name = "Aqua Particle " + (c + 1).ToString();
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -139,7 +142,7 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -156,7 +159,7 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -172,7 +175,7 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -188,7 +191,7 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -204,7 +207,7 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -220,7 +223,7 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -236,7 +239,11 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(
+                Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)),
+                Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize))
+                );
+
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -252,7 +259,7 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -268,7 +275,7 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -284,7 +291,7 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -300,7 +307,7 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -316,7 +323,7 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -332,7 +339,7 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
@@ -348,7 +355,7 @@ public class ParticleSpawner : MonoBehaviour
 
             manager.particles[c] = inst;
 
-            Vector2 pos = new Vector2(Random.Range(-xRange + (.5f * particleSize), xRange - (.5f * particleSize)), Random.Range(-yRange + (.5f * particleSize), yRange - (.5f * particleSize)));
+            Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
 
             inst.transform.localScale = Vector2.one * particleSize;
