@@ -14,14 +14,14 @@ public class Particle : MonoBehaviour
 
     public float Interact(float distance)
     {
-        if (distance >= interactRadius) { return 0; }
+        if (distance >= interactRadius) return 0;
         float t = distance / interactRadius;
         return -SmootherStep(t) * interactForce;
     }
 
     public float Repel(float distance)
     {
-        if (distance >= repelRadius) { return 0; }
+        if (distance >= repelRadius) return 0;
         float t = distance / repelRadius;
         return SmootherStep(t) * repelForce;
     }
