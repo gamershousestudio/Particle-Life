@@ -167,13 +167,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   xRange: 1.7787455
   yRange: 1
-  sceneSize: 10
+  sceneSize: 5
   particleSize: 0.3
-  numberOfAquaParticles: 0
+  numberOfAquaParticles: 100
   numberOfBlueParticles: 0
   numberOfBrownParticles: 0
-  numberOfDarkGreenParticles: 10
-  numberOfDarkRedParticles: 10
+  numberOfDarkGreenParticles: 0
+  numberOfDarkRedParticles: 0
   numberOfGreenParticles: 0
   numberOfMagentaParticles: 0
   numberOfNavyBlueParticles: 0
@@ -313,19 +313,14 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
-  repelForceConst: 1000
+  randomizeInteractions: 0
+  repelForceConst: 0
   repelForce: []
   repelRadius: 0.7
-  interactForceConst: 10
+  interactForceConst: 0
   interactForce: []
   interactRadius: 5
   wrappedBuffer: 0.9
-  drawLines: 1
-  enableWrapped: 1
-  showWrapped: 1
-  showNormal: 1
-  showAttract: 1
-  showRepel: 1
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -362,7 +357,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 2
-  m_BackGroundColor: {r: 0, g: 0, b: 0, a: 0}
+  m_BackGroundColor: {r: 0.24528301, g: 0.24528301, b: 0.24528301, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0

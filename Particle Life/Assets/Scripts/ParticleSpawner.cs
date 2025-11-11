@@ -53,6 +53,8 @@ public class ParticleSpawner : MonoBehaviour
 
     private ParticleManager manager;
 
+    [HideInInspector] public bool isComplete = false;
+
     // Initialize init variables and functions    
     private void Start()
     {
@@ -66,6 +68,8 @@ public class ParticleSpawner : MonoBehaviour
         SpawnParticles();
 
         SizeScene();
+
+        isComplete = true;
     }
 
     private void SizeScene()
@@ -96,21 +100,21 @@ public class ParticleSpawner : MonoBehaviour
         GameObject white = null;
         GameObject yellow = null;
 
-        if (numberOfAquaParticles > 0) aqua = new GameObject("Aqua"); aqua.transform.parent = manager.transform;
-        if (numberOfBlueParticles > 0) blue = new GameObject("Blue"); blue.transform.parent = manager.transform;
-        if (numberOfBrownParticles > 0) brown = new GameObject("Brown"); brown.transform.parent = manager.transform;
-        if (numberOfDarkGreenParticles > 0) darkGreen = new GameObject("Dark-Green"); darkGreen.transform.parent = manager.transform;
-        if (numberOfDarkRedParticles > 0) darkRed = new GameObject("Dark-Red"); darkRed.transform.parent = manager.transform;
-        if (numberOfGreenParticles > 0) green = new GameObject("Green"); green.transform.parent = manager.transform;
-        if (numberOfMagentaParticles > 0) magenta = new GameObject("Magenta"); magenta.transform.parent = manager.transform;
-        if (numberOfNavyBlueParticles > 0) navyBlue = new GameObject("Navy-Blue"); navyBlue.transform.parent = manager.transform;
-        if (numberOfOrangeParticles > 0) orange = new GameObject("Orange"); orange.transform.parent = manager.transform;
-        if (numberOfPinkParticles > 0) pink = new GameObject("Pink"); pink.transform.parent = manager.transform;
-        if (numberOfPurpleParticles > 0) purple = new GameObject("Purple"); purple.transform.parent = manager.transform;
-        if (numberOfRedParticles > 0) red = new GameObject("Red"); red.transform.parent = manager.transform;
-        if (numberOfTealParticles > 0) teal = new GameObject("Teal"); teal.transform.parent = manager.transform; 
-        if (numberOfWhiteParticles > 0) white = new GameObject("White"); white.transform.parent = manager.transform; 
-        if (numberOfYellowParticles > 0) yellow = new GameObject("Yellow"); yellow.transform.parent = manager.transform; 
+        if (numberOfAquaParticles > 0) { aqua = new GameObject("Aqua"); aqua.transform.parent = manager.transform; }
+        if (numberOfBlueParticles > 0) { blue = new GameObject("Blue"); blue.transform.parent = manager.transform; }
+        if (numberOfBrownParticles > 0) { brown = new GameObject("Brown"); brown.transform.parent = manager.transform; }
+        if (numberOfDarkGreenParticles > 0) { darkGreen = new GameObject("Dark-Green"); darkGreen.transform.parent = manager.transform; }
+        if (numberOfDarkRedParticles > 0) { darkRed = new GameObject("Dark-Red"); darkRed.transform.parent = manager.transform; }
+        if (numberOfGreenParticles > 0) { green = new GameObject("Green"); green.transform.parent = manager.transform; }
+        if (numberOfMagentaParticles > 0) { magenta = new GameObject("Magenta"); magenta.transform.parent = manager.transform; }
+        if (numberOfNavyBlueParticles > 0) { navyBlue = new GameObject("Navy-Blue"); navyBlue.transform.parent = manager.transform; }
+        if (numberOfOrangeParticles > 0) { orange = new GameObject("Orange"); orange.transform.parent = manager.transform; }
+        if (numberOfPinkParticles > 0) { pink = new GameObject("Pink"); pink.transform.parent = manager.transform; }
+        if (numberOfPurpleParticles > 0) { purple = new GameObject("Purple"); purple.transform.parent = manager.transform; }
+        if (numberOfRedParticles > 0) { red = new GameObject("Red"); red.transform.parent = manager.transform; }
+        if (numberOfTealParticles > 0) { teal = new GameObject("Teal"); teal.transform.parent = manager.transform; }
+        if (numberOfWhiteParticles > 0) { white = new GameObject("White"); white.transform.parent = manager.transform; }
+        if (numberOfYellowParticles > 0) { yellow = new GameObject("Yellow"); yellow.transform.parent = manager.transform; }
 
         // Creates every particle
         int c = 0;
@@ -137,10 +141,11 @@ public class ParticleSpawner : MonoBehaviour
         for (int i = 0; i < numberOfBlueParticles; i++)
         {
             GameObject inst = Instantiate(blueParticle, blue.transform);
-            inst.name = "Blue Particle " + (c + 1).ToString();
+            inst.name = "Blue Particle " + (c + 1 - numberOfAquaParticles).ToString();
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
@@ -155,10 +160,11 @@ public class ParticleSpawner : MonoBehaviour
         for (int i = 0; i < numberOfBrownParticles; i++)
         {
             GameObject inst = Instantiate(brownParticle, brown.transform);
-            inst.name = "Brown Particle " + (c + 1).ToString();
+            inst.name = "Brown Particle " + (c + 1 - numberOfAquaParticles - numberOfBlueParticles).ToString();
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
@@ -172,10 +178,11 @@ public class ParticleSpawner : MonoBehaviour
         for (int i = 0; i < numberOfDarkGreenParticles; i++)
         {
             GameObject inst = Instantiate(darkGreenParticle, darkGreen.transform);
-            inst.name = "Dark-Green Particle " + (c + 1).ToString();
+            inst.name = "Dark-Green Particle " + (c + 1 - numberOfAquaParticles - numberOfBlueParticles - numberOfBrownParticles).ToString();
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
@@ -189,10 +196,11 @@ public class ParticleSpawner : MonoBehaviour
         for (int i = 0; i < numberOfDarkRedParticles; i++)
         {
             GameObject inst = Instantiate(darkRedParticle, darkRed.transform);
-            inst.name = "Dark-Red Particle " + (c + 1).ToString();
+            inst.name = "Dark-Red Particle " + (c + 1 - numberOfAquaParticles - numberOfBlueParticles - numberOfBrownParticles - numberOfDarkGreenParticles).ToString();
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
@@ -206,10 +214,11 @@ public class ParticleSpawner : MonoBehaviour
         for (int i = 0; i < numberOfGreenParticles; i++)
         {
             GameObject inst = Instantiate(greenParticle, green.transform);
-            inst.name = "Green Particle " + (c + 1).ToString();
+            inst.name = "Green Particle " + (c + 1 - numberOfAquaParticles - numberOfBlueParticles - numberOfBrownParticles - numberOfDarkGreenParticles - numberOfDarkRedParticles).ToString();
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
@@ -227,6 +236,7 @@ public class ParticleSpawner : MonoBehaviour
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
@@ -244,6 +254,7 @@ public class ParticleSpawner : MonoBehaviour
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(
                 Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)),
@@ -265,6 +276,7 @@ public class ParticleSpawner : MonoBehaviour
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
@@ -282,6 +294,7 @@ public class ParticleSpawner : MonoBehaviour
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
@@ -299,6 +312,7 @@ public class ParticleSpawner : MonoBehaviour
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
@@ -316,6 +330,7 @@ public class ParticleSpawner : MonoBehaviour
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
@@ -333,6 +348,7 @@ public class ParticleSpawner : MonoBehaviour
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
@@ -350,6 +366,7 @@ public class ParticleSpawner : MonoBehaviour
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;
@@ -367,6 +384,7 @@ public class ParticleSpawner : MonoBehaviour
             inst.layer = 3; // Three is the layer for particles
 
             manager.particles[c] = inst;
+            inst.GetComponent<Particle>().index = c;
 
             Vector2 pos = new Vector2(Random.Range(-xRange * sceneSize + (.5f * particleSize), xRange * sceneSize - (.5f * particleSize)), Random.Range(-yRange * sceneSize + (.5f * particleSize), yRange * sceneSize - (.5f * particleSize)));
             inst.transform.position = pos;

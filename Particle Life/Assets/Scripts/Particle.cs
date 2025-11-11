@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class Particle : MonoBehaviour
@@ -6,24 +7,24 @@ public class Particle : MonoBehaviour
     // Interaction variables
     [Header("Interaction Variables")]
 
-    public float repelForce;
+    public List<float> repelForce;
     public float repelRadius;
-    public float interactForce;
+    public List<float> interactForce;
     public float interactRadius;
     public int index;
 
-    public float Interact(float distance)
+    public float Interact(float distance, int otherID)
     {
         if (distance >= interactRadius) return 0;
         float t = distance / interactRadius;
-        return -SmootherStep(t) * interactForce;
+        return -SmootherStep(t) * interactForce[otherID];
     }
 
-    public float Repel(float distance)
+    public float Repel(float distance, int otherID)
     {
         if (distance >= repelRadius) return 0;
         float t = distance / repelRadius;
-        return SmootherStep(t) * repelForce;
+        return SmootherStep(t) * repelForce[otherID];
     }
 
     // Decreases the derivative to minimize sudden change
