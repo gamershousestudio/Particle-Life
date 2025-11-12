@@ -29,15 +29,14 @@ public class ParticleManager : MonoBehaviour
 
     // X axis = how each particle interacts with other particles
     public float repelForceConst;
-    [HideInInspector] public List<RepelForce> repelForce = new List<RepelForce>(0);
-    public float repelRadius;
     public float interactForceConst;
-    [HideInInspector] public List<InteractForce> interactForce = new List<InteractForce>(0);
+    [HideInInspector] public List<RepelForce> repelForce = new List<RepelForce>(0);
+    [HideInInspector] public List<InteractForce> interactForce = new List<InteractForce>(0);public float repelRadius;
     public float interactRadius;
     public float wrappedBuffer;
 
     // Toggles
-    [Header(("Toggles"))]
+    [Header("Toggles")]
 
     public bool drawLines;
     public bool enableWrapped;
@@ -53,7 +52,7 @@ public class ParticleManager : MonoBehaviour
         print("Particle Initialization complete.");
 
         InitializeValues();
-        UpdateValues(); 
+        UpdateValues();
     }
 
     // Initialize update functions
@@ -67,31 +66,31 @@ public class ParticleManager : MonoBehaviour
         List<int> toFix = new List<int>();
 
         // Loops through each value in the matrix to see if it needs to be updated
-        for (int x = 0; x < transform.childCount; x++)
-        {
-            if (transform.GetChild(x).name == "Walls") continue;
+        // for (int x = 0; x < transform.childCount; x++)
+        // {
+        //     if (transform.GetChild(x).name == "Walls") continue;
 
-            for (int y = 0; y < (transform.childCount - 1); y++)
-            {
-                ParticleParent inst = transform.GetChild(x).GetComponent<ParticleParent>();
+        //     for (int y = 0; y < (transform.childCount - 1); y++)
+        //     {
+        //         ParticleParent inst = transform.GetChild(x).GetComponent<ParticleParent>();
 
-                if (inst.repelForce[y] != (this.repelForce[x - 1].values[y] * repelForceConst) || // TODO: FIX ERROR I AM GETTING HERE; NOT SURE WHY I AM GETTING IT BUT I AM
-                   inst.interactForce[y] != (this.interactForce[x - 1].values[y] * interactForceConst) ||
-                   inst.repelRadius != this.repelRadius ||
-                   inst.interactRadius != this.interactRadius)
-                {
-                    toFix.Add(x);
+        //         if (inst.repelForce[y] != (this.repelForce[x - 1].values[y] * repelForceConst) ||
+        //            inst.interactForce[y] != (this.interactForce[x - 1].values[y] * interactForceConst) ||
+        //            inst.repelRadius != this.repelRadius ||
+        //            inst.interactRadius != this.interactRadius)
+        //         {
+        //             toFix.Add(x);
 
-                    print("Proccessing change to color type " + transform.GetChild(x).name + "...");
-                }
-            }
-        }
+        //             print("Proccessing change to color type " + transform.GetChild(x).name + "...");
+        //         }
+        //     }
+        // }
         
-        if(toFix.Count > 0)
-        {
-            UpdateValues(toFix.ToArray());
-            print("Change complete");
-        }
+        // if(toFix.Count > 0)
+        // {
+        //     UpdateValues(toFix.ToArray());
+        //     print("Change complete");
+        // }
     }
 
     private void ParticleInteract()
@@ -255,7 +254,7 @@ public class ParticleManager : MonoBehaviour
                         // if (wrapX) { direction = new Vector2(-direction.x, direction.y); }
                         // else { direction = new Vector2(direction.x, -direction.y); }
 
-                        vel += direction * force; // TODO: WRAPPED FORCES ARE NOT BEING APPLIED CORRECTLY (one goes wrong in x, both in y)
+                        vel += direction * force;
                     }
                 }
             }
@@ -324,8 +323,8 @@ public class ParticleManager : MonoBehaviour
             }
         }
     }
-    
-    private void UpdateValues(int[] toFix = null)
+
+    private void UpdateValues(int[] toFix = null) // NOTE: this function will become useless once hud is fully complete, as it is not efficient to run this every frame & HUD.cs will fix that
     {
         // Loops through all particles and updates their values
         for (int j = 0; j < transform.childCount; j++)
@@ -342,7 +341,7 @@ public class ParticleManager : MonoBehaviour
             {
                 i = j;
             }
-            
+
 
             GameObject inst = transform.GetChild(i).gameObject;
             ParticleParent child = inst.GetComponent<ParticleParent>();
@@ -351,7 +350,7 @@ public class ParticleManager : MonoBehaviour
 
             try
             {
-                for (int v = 0; v < toFix.Length; v++) // TODO: FIX PARTICLE PARENTS NOT BEING INITIALIZED WITH CORRECT LIST SIZE
+                for (int v = 0; v < toFix.Length; v++)
                 {
                     int x = toFix[v];
 
@@ -453,6 +452,36 @@ public class ParticleManager : MonoBehaviour
                     {
                         child.interactRadius = this.interactRadius;
                     }
+                }
+            }
+        }
+    }
+
+    public void UpdateInts(int index) // NOTE: name temp while UpdateValues() is still in use
+    {
+        for(int x = 0; x < transform.childCount; x++)
+        {
+            if (transform.GetChild(x).name == "Walls") continue;
+
+            ParticleParent inst = transform.GetChild(x).GetComponent<ParticleParent>();
+
+            for(int y = 0; y < transform.childCount - 1; y++)
+            {
+                if (index == 0)
+                {
+                    inst.repelForce[y] = this.repelForce[x].values[y] * this.repelForceConst;
+                }
+                else if (index == 1)
+                {
+                    inst.interactForce[y] = this.interactForce[x].values[y] * this.interactForceConst;
+                }
+                else if (index == 2)
+                {
+                    inst.repelRadius = this.repelRadius;
+                }
+                else if(index == 3)
+                {
+                    inst.interactRadius = this.interactRadius;
                 }
             }
         }
