@@ -31,7 +31,8 @@ public class ParticleManager : MonoBehaviour
     public float repelForceConst;
     public float interactForceConst;
     [HideInInspector] public List<RepelForce> repelForce = new List<RepelForce>(0);
-    [HideInInspector] public List<InteractForce> interactForce = new List<InteractForce>(0);public float repelRadius;
+    [HideInInspector] public List<InteractForce> interactForce = new List<InteractForce>(0);
+    public float repelRadius;
     public float interactRadius;
     public float wrappedBuffer;
 
@@ -52,6 +53,9 @@ public class ParticleManager : MonoBehaviour
         print("Particle Initialization complete.");
 
         InitializeValues();
+
+        // Debug.();
+
         UpdateValues();
     }
 
@@ -63,7 +67,7 @@ public class ParticleManager : MonoBehaviour
         // RandomizeInteractions(); NOTE: DOES NOT DO ANYTHING RIGHT NOW
 
         // Updates particle variables in real time
-        List<int> toFix = new List<int>();
+        // List<int> toFix = new List<int>();
 
         // Loops through each value in the matrix to see if it needs to be updated
         // for (int x = 0; x < transform.childCount; x++)
@@ -91,6 +95,8 @@ public class ParticleManager : MonoBehaviour
         //     UpdateValues(toFix.ToArray());
         //     print("Change complete");
         // }
+
+        UpdateValues();
     }
 
     private void ParticleInteract()
@@ -118,31 +124,33 @@ public class ParticleManager : MonoBehaviour
         // Loops through every particle to see how it should move
         foreach (GameObject inst in particles)
         {
+            Particle particle = inst.GetComponent<Particle>(); // Can be further optimized, but this will do for now
+
             Vector2 vel = new Vector2(0, 0);
 
             // Checks for nearby particles
             Collider2D[] nearby = Physics2D.OverlapCircleAll(inst.transform.position, interactRadius); // 3 is layermask for particles
-
+            
             // Finds how the nearby should impact the particle
             foreach (Collider2D other in nearby)
             {
                 if (other.gameObject == inst) continue;
                 if (other.tag != "Particle") continue;
-
+                
                 distance = inst.transform.position - other.transform.position;
                 direction = distance.normalized;
 
-                hypotenuse = Mathf.Sqrt(Mathf.Pow(distance.x, 2) + Mathf.Pow(distance.y, 2));
+                hypotenuse = distance.magnitude;
 
                 // Particles are close enough to repel
                 if (hypotenuse <= repelRadius)
                 {
-                    force = inst.GetComponent<Particle>().Repel(hypotenuse, GetID(other.transform.parent.name));
+                    force = particle.Repel(hypotenuse, GetID(other.transform.parent.name));
                 }
                 // Particles should go based on interaction force
                 else
                 {
-                    force = inst.GetComponent<Particle>().Interact(hypotenuse, GetID(other.transform.parent.name));
+                    force = particle.Interact(hypotenuse, GetID(other.transform.parent.name));
                 }
 
                 // Creates a gradient to display interactions
@@ -215,17 +223,17 @@ public class ParticleManager : MonoBehaviour
                     distance = main - ghost;
                     direction = distance.normalized;
 
-                    hypotenuse = Mathf.Sqrt(Mathf.Pow(distance.x, 2) + Mathf.Pow(distance.y, 2));
+                    hypotenuse = distance.magnitude;
 
                     // Particles are close enough to repel
                     if (hypotenuse <= repelRadius)
                     {
-                        force = inst.GetComponent<Particle>().Repel(hypotenuse, GetID(other.transform.parent.name));
+                        force = particle.Repel(hypotenuse, GetID(other.transform.parent.name));
                     }
                     // Particles should go based on interaction force
                     else
                     {
-                        force = inst.GetComponent<Particle>().Interact(hypotenuse, GetID(other.transform.parent.name));
+                        force = particle.Interact(hypotenuse, GetID(other.transform.parent.name));
                     }
 
                     if (force != 0)
@@ -280,184 +288,93 @@ public class ParticleManager : MonoBehaviour
         int needed = transform.childCount - 1;
 
         // Initializes matricies for particles
-        while (interactForce.Count < needed)
-            interactForce.Add(new InteractForce());
+        for (int i = interactForce.Count; i < needed; i++) interactForce.Add(new InteractForce());
 
-        while (repelForce.Count < needed)
-            repelForce.Add(new RepelForce());
+        for (int i = repelForce.Count; i < needed; i++) repelForce.Add(new RepelForce());
 
-        try
+        foreach (var repelF in repelForce)
+            while (repelF.values.Count < needed) repelF.values.Add(0f);
+
+        foreach (var interactF in interactForce)
+            while (interactF.values.Count < needed) interactF.values.Add(0f);
+
+        // Initializes values for children
+        for(int x = 0; x < transform.childCount; x++)
         {
-            while (interactForce[0].values.Count < needed)
-            {
-                for (int i = 0; i < interactForce.Count; i++)
-                {
-                    interactForce[i].values.Add(0f);
-                }
-            }
+            if(transform.GetChild(x).name == "Walls") continue;
 
-            while (repelForce[0].values.Count < needed)
-            {
-                for (int i = 0; i < repelForce.Count; i++)
-                {
-                    repelForce[i].values.Add(0f);
-                }
-            }
-        }
-        catch
-        {
-            // Breaks if matrix not fully initialized yet
-        }
+            ParticleParent inst = transform.GetChild(x).gameObject.AddComponent<ParticleParent>();
 
-        for (int i = 0; i < transform.childCount; i++)
-        {
-            GameObject inst = transform.GetChild(i).gameObject;
+            for(int y = 0; y < (transform.childCount - 1); y++)
+            {
+                inst.interactForce.Add(this.interactForce[x - 1].values[y] * interactForceConst);
+                inst.repelForce.Add(this.repelForce[x - 1].values[y] * repelForceConst);
+            }   
 
-            if (inst.GetComponent<ParticleParent>() == null && inst.name != "Walls")
-            {
-                inst.AddComponent<ParticleParent>();
-            }
-            else if (inst.name == "Walls")
-            {
-                continue;
-            }
+            inst.repelRadius = this.repelRadius;
+            inst.interactRadius = this.interactRadius;
         }
     }
 
-    private void UpdateValues(int[] toFix = null) // NOTE: this function will become useless once hud is fully complete, as it is not efficient to run this every frame & HUD.cs will fix that
+    private void UpdateValues() // NOTE: this function will become useless once hud is fully complete, as it is not efficient to run this every frame & HUD.cs will fix that
     {
         // Loops through all particles and updates their values
         for (int j = 0; j < transform.childCount; j++)
         {
             if (transform.GetChild(j).name == "Walls") continue;
 
-            int i;
-
-            try
-            {
-                i = toFix[j];
-            }
-            catch
-            {
-                i = j;
-            }
+            int i = j;
 
 
             GameObject inst = transform.GetChild(i).gameObject;
             ParticleParent child = inst.GetComponent<ParticleParent>();
 
-            if (child == null) child = inst.AddComponent<ParticleParent>();
-
-            try
+            for (int x = 0; x < transform.childCount - 1; x++)
             {
-                for (int v = 0; v < toFix.Length; v++)
+                if (child.repelForce != this.repelForce[x].values)
                 {
-                    int x = toFix[v];
-
-                    if (child.repelForce != this.repelForce[x].values)
+                    for (int y = 0; y < this.repelForce[GetID(inst.name)].values.Count; y++)
                     {
-                        for (int y = 0; y < this.repelForce[GetID(inst.name)].values.Count; y++)
+                        try
                         {
-                            try
-                            {
-                                child.repelForce[y] = this.repelForce[GetID(inst.name)].values[y] * repelForceConst;
-                            }
-                            catch
-                            {
-                                child.repelForce.Add(this.repelForce[GetID(inst.name)].values[y] * repelForceConst);
-                            }
+                            child.repelForce[y] = this.repelForce[GetID(inst.name)].values[y] * repelForceConst;
                         }
-                    }
-
-                    if (child.repelRadius != this.repelRadius)
-                    {
-                        child.repelRadius = this.repelRadius;
-                    }
-
-                    if (child.interactForce != this.interactForce[x].values)
-                    {
-                        for (int y = 0; y < this.interactForce[GetID(inst.name)].values.Count; y++)
+                        catch
                         {
-                            try
-                            {
-                                child.interactForce[y] = this.interactForce[GetID(inst.name)].values[y] * interactForceConst;
-                            }
-                            catch
-                            {
-                                child.interactForce.Add(this.interactForce[GetID(inst.name)].values[y] * interactForceConst);
-                            }
+                            child.repelForce.Add(this.repelForce[GetID(inst.name)].values[y] * repelForceConst);
                         }
-                    }
-
-                    if (child.interactRadius != this.interactRadius)
-                    {
-                        child.interactRadius = this.interactRadius;
                     }
                 }
-            }
-            catch
-            {
-                for (int x = 0; x < transform.childCount - 1; x++)
+
+                if (child.repelRadius != this.repelRadius)
                 {
-                    try
+                    child.repelRadius = this.repelRadius;
+                }
+
+                if (child.interactForce != this.interactForce[x].values)
+                {
+                    for (int y = 0; y < this.interactForce[GetID(inst.name)].values.Count; y++)
                     {
-                        if (child.repelForce != this.repelForce[x].values)
+                        try
                         {
-                            for (int y = 0; y < this.repelForce[GetID(inst.name)].values.Count; y++)
-                            {
-                                try
-                                {
-                                    child.repelForce[y] = this.repelForce[GetID(inst.name)].values[y] * repelForceConst;
-                                }
-                                catch
-                                {
-                                    child.repelForce.Add(this.repelForce[GetID(inst.name)].values[y] * repelForceConst);
-                                }
-                            }
+                            child.interactForce[y] = this.interactForce[GetID(inst.name)].values[y] * interactForceConst;
+                        }
+                        catch
+                        {
+                            child.interactForce.Add(this.interactForce[GetID(inst.name)].values[y] * interactForceConst);
                         }
                     }
-                    catch
-                    {
-                        child.repelForce.Add(0);
-                    }
+                }
 
-                    if (child.repelRadius != this.repelRadius)
-                    {
-                        child.repelRadius = this.repelRadius;
-                    }
-
-                    try
-                    {
-                        if (child.interactForce != this.interactForce[x].values)
-                        {
-                            for (int y = 0; y < this.interactForce[GetID(inst.name)].values.Count; y++)
-                            {
-                                try
-                                {
-                                    child.interactForce[y] = this.interactForce[GetID(inst.name)].values[y] * interactForceConst;
-                                }
-                                catch
-                                {
-                                    child.interactForce.Add(this.interactForce[GetID(inst.name)].values[y] * interactForceConst);
-                                }
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        child.interactForce.Add(0);
-                    }
-
-                    if (child.interactRadius != this.interactRadius)
-                    {
-                        child.interactRadius = this.interactRadius;
-                    }
+                if (child.interactRadius != this.interactRadius)
+                {
+                    child.interactRadius = this.interactRadius;
                 }
             }
         }
     }
 
-    public void UpdateInts(int index) // NOTE: name temp while UpdateValues() is still in use
+    public void UpdateConsts(int index) // NOTE: name temp while UpdateValues() is still in use
     {
         for(int x = 0; x < transform.childCount; x++)
         {
@@ -469,11 +386,11 @@ public class ParticleManager : MonoBehaviour
             {
                 if (index == 0)
                 {
-                    inst.repelForce[y] = this.repelForce[x].values[y] * this.repelForceConst;
+                    inst.repelForce[y] = this.repelForce[x - 1].values[y] * this.repelForceConst;
                 }
                 else if (index == 1)
                 {
-                    inst.interactForce[y] = this.interactForce[x].values[y] * this.interactForceConst;
+                    inst.interactForce[y] = this.interactForce[x - 1].values[y] * this.interactForceConst;
                 }
                 else if (index == 2)
                 {
@@ -489,75 +406,12 @@ public class ParticleManager : MonoBehaviour
 
     // Returns an int for a particle's name
     // Organized in alphabetical order
-    public static int GetNumeric(string color)
-    {
-        int id = 0;
-
-        color = color.ToLower();
-
-        if (color == "aqua")
-        {
-            id = 0;
-        }
-        else if (color == "blue")
-        {
-            id = 1;
-        }
-        else if (color == "brown")
-        {
-            id = 2;
-        }
-        else if (color == "dark-green")
-        {
-            id = 3;
-        }
-        else if (color == "dark-red")
-        {
-            id = 4;
-        }
-        else if (color == "green")
-        {
-            id = 5;
-        }
-        else if (color == "magenta")
-        {
-            id = 6;
-        }
-        else if (color == "navy")
-        {
-            id = 7;
-        }
-        else if (color == "orange")
-        {
-            id = 8;
-        }
-        else if (color == "pink")
-        {
-            id = 9;
-        }
-        else if (color == "purple")
-        {
-            id = 10;
-        }
-        else if (color == "red")
-        {
-            id = 11;
-        }
-        else if (color == "teal")
-        {
-            id = 12;
-        }
-        else if (color == "white")
-        {
-            id = 13;
-        }
-        else if (color == "yellow")
-        {
-            id = 14;
-        }
-
-        return id;
-    }
+    private static readonly Dictionary<string, int> colorMap = new Dictionary<string, int>()
+{
+    {"aqua", 0}, {"blue", 1}, {"brown", 2}, {"dark-green", 3}, {"dark-red", 4},
+    {"green", 5}, {"magenta", 6}, {"navy", 7}, {"orange", 8}, {"pink", 9},
+    {"purple", 10}, {"red", 11}, {"teal", 12}, {"white", 13}, {"yellow", 14}
+    };
 
     // Gets an int id for each particle(based on amount of particles)
     public int GetID(string color)

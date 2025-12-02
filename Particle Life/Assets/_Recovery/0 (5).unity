@@ -488,16 +488,16 @@ MonoBehaviour:
   particleSize: 0.3
   numberOfAquaParticles: 0
   numberOfBlueParticles: 0
-  numberOfBrownParticles: 20
+  numberOfBrownParticles: 0
   numberOfDarkGreenParticles: 0
-  numberOfDarkRedParticles: 50
+  numberOfDarkRedParticles: 1
   numberOfGreenParticles: 0
-  numberOfMagentaParticles: 50
+  numberOfMagentaParticles: 1
   numberOfNavyBlueParticles: 0
   numberOfOrangeParticles: 0
   numberOfPinkParticles: 0
   numberOfPurpleParticles: 0
-  numberOfRedParticles: 50
+  numberOfRedParticles: 0
   numberOfTealParticles: 0
   numberOfWhiteParticles: 0
   numberOfYellowParticles: 0
@@ -932,48 +932,8 @@ MonoBehaviour:
   - {fileID: 0}
   repelForceConst: 1000
   interactForceConst: 10
-  repelForce:
-  - values:
-    - 1
-    - 1
-    - 1
-    - 1
-  - values:
-    - 1
-    - 1
-    - 1
-    - 1
-  - values:
-    - 1
-    - 1
-    - 1
-    - 1
-  - values:
-    - 1
-    - 1
-    - 1
-    - 1
-  interactForce:
-  - values:
-    - 1
-    - 0.25
-    - 0.25
-    - 0.25
-  - values:
-    - -0.25
-    - 1
-    - -1
-    - -1
-  - values:
-    - -0.25
-    - -1
-    - 1
-    - -1
-  - values:
-    - -0.25
-    - -1
-    - -1
-    - 1
+  repelForce: []
+  interactForce: []
   repelRadius: 0.7
   interactRadius: 5
   wrappedBuffer: 0.9
@@ -1424,7 +1384,7 @@ CanvasGroup:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 423756265}
   m_Enabled: 1
-  m_Alpha: 0.5
+  m_Alpha: 0.7
   m_Interactable: 1
   m_BlocksRaycasts: 1
   m_IgnoreParentGroups: 0
@@ -1926,7 +1886,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &739993613
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1943,8 +1903,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 50, y: -200}
-  m_SizeDelta: {x: 400, y: 400}
+  m_AnchoredPosition: {x: 14.439941, y: -203.106}
+  m_SizeDelta: {x: 156.25, y: 153.899}
   m_Pivot: {x: 0, y: 0.5}
 --- !u!114 &739993614
 MonoBehaviour:
@@ -1959,15 +1919,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0.6792453, g: 0.6792453, b: 0.6792453, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 7482667652216324306, guid: e75c4bbf7b0b0cf45985bd81ba51d792, type: 3}
-  m_Type: 0
+  m_Sprite: {fileID: 0}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4

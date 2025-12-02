@@ -2,6 +2,8 @@ using UnityEngine;
 using TMPro;
 using System.Linq;
 using UnityEngine.PlayerLoop;
+using System;
+using System.Collections.Generic;
 
 public class HUD : MonoBehaviour
 {
@@ -13,6 +15,17 @@ public class HUD : MonoBehaviour
     public TMP_Text repelRadiusInput;
     public TMP_Text interactRadiusInput;
 
+    public enum ConstType
+    {
+        RepelForce,
+        InteractForce,
+        RepelRadius,
+        InteractRadius,
+        WrappedToggle
+    }
+    private Dictionary<string, ConstType> inputLookup;
+
+
     // Consts
     [Header("Constants")]
 
@@ -22,61 +35,100 @@ public class HUD : MonoBehaviour
     private void Start()
     {
         for (int i = 0; i < nums.Length; i++) nums[i] = (char)(i + 48); // Numbers start at 48(in ASCII)
+
+        inputLookup = new Dictionary<string, ConstType>()
+        {
+            { "RepelForceConst", ConstType.RepelForce },
+            { "InteractForceConst", ConstType.InteractForce },
+            { "RepelRadius", ConstType.RepelRadius },
+            { "InteractRadius", ConstType.InteractRadius }
+        };
     }
 
     // Makes sure new text pasts all requirements
     public void RemoveCharacters(TMP_InputField reference)
     {
+        // Removes extra characters
         for (int i = 0; i < reference.text.Length; i++)
         {
-            if ((!nums.Contains(reference.text[i])) && !(reference.text[i] == '.'))
+            if ((!nums.Contains(reference.text[i])) && !(reference.text[i] == '.') && !(reference.text[i] == '-'))
             {
                 reference.text = reference.text.Remove(i);
                 return;
             }
         }
 
-        if (reference.name == "RepelForceConst")
+        // Sets blank to zero
+        if(reference.text.Length == 0)
         {
-            UpdateValues(0, reference);
+            reference.text = "0";
         }
-        else if (reference.name == "InteractForceConst")
+
+        // Removes access variables
+        if(reference.text[0] == '0' && reference.text.Length > 1)
         {
-            UpdateValues(1, reference);
+            print("Unneccessary 0!");
+
+            for(int i = 0; i < reference.text.Length; i++)
+            {
+                print("Checking " + reference.text[i]);
+
+                if(reference.text[i] == '0')
+                {
+                    print("Found!");
+                    reference.text = reference.text.Remove(i);
+                }
+                else
+                {
+                    break;
+                }
+            }
         }
-        else if (reference.name == "RepelRadius")
+
+        UpdateValues(inputLookup[reference.name], reference);
+    }
+
+    public void SwitchToggle(string toggle, bool value)
+    {
+        switch(toggle.ToLower())
         {
-            UpdateValues(2, reference);
-        }
-        else if(reference.name == "InteractRadius")
-        {
-            UpdateValues(3, reference);
+            case "applywrappedforces":
+                GameObject.FindAnyObjectByType<ParticleManager>().GetComponent<ParticleManager>().enableWrapped = value;
+
+                break;
         }
     }
 
-    private void UpdateValues(int i, TMP_InputField text)
+    private void UpdateValues(ConstType type, TMP_InputField text)
     {
-        ParticleManager script = FindAnyObjectByType<ParticleManager>().GetComponent<ParticleManager>();
+        ParticleManager script = GameObject.FindAnyObjectByType<ParticleManager>().GetComponent<ParticleManager>();
 
-        float newValue = float.Parse(text.text);
+        float newValue = 0;
 
-        if (i == 0)
+        if(text != null)
         {
-            script.repelForceConst = newValue;
-        }
-        else if (i == 1)
-        {
-            script.interactForceConst = newValue;
-        }
-        else if (i == 2)
-        {
-            script.repelRadius = newValue;
-        }
-        else if (i == 3)
-        {
-            script.interactRadius = newValue;
+            newValue = float.Parse(text.text);
         }
 
-        script.UpdateInts(i);
+        switch (type)
+        {
+            case ConstType.RepelForce:
+                script.repelForceConst = newValue;
+                break;
+
+            case ConstType.InteractForce:
+                script.interactForceConst = newValue;
+                break;
+
+            case ConstType.RepelRadius:
+                script.repelRadius = newValue;
+                break;
+
+            case ConstType.InteractRadius:
+                script.interactRadius = newValue;
+                break;
+        }
+
+        script.UpdateConsts((int)type);
     }
 }
