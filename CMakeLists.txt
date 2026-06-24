@@ -60,6 +60,14 @@ target_include_directories(ParticleLife PRIVATE
     src
 )
 
+# Copy shaders to build
+add_custom_command(TARGET ParticleLife POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_SOURCE_DIR}/res"
+    "${CMAKE_BINARY_DIR}/res"
+)
+
+
 # Tells CMake that these external libraries will be used in project
 target_link_libraries(ParticleLife PRIVATE
     ParticleRenderer

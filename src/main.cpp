@@ -217,12 +217,18 @@ static unsigned int InitializeShader(const std::string path)
     // Shader source: change path if moving or renaming basic.shader
     std::string shaderSrc = LoadShaderFile(path);
 
-    // Gets vertex shader from basic.shader
-    std::string vs = shaderSrc.substr(shaderSrc.find("#shader vertex") + 15); // Starts after vertex shader start("shader vertex" is 15 chars long)
-    vs = vs.substr(0, vs.find("#shader fragment"));
+    const std::string vertexMarker = "#shader vertex";
+    const std::string fragmentMarker = "#shader fragment";
 
-    // Gets fragment shader from basic.shader
-    std::string fs = shaderSrc.substr(shaderSrc.find("#shader fragment") + 17); // Starts after fragment shader start("shader fragment" is 17 chars long)
+    const std::size_t vertexPos = shaderSrc.find(vertexMarker);
+    const std::size_t fragmentPos = shaderSrc.find(fragmentMarker);
+
+    // Gets vertex shader from shader file
+    std::string vs = shaderSrc.substr(vertexPos + vertexMarker.size());
+    vs = vs.substr(0, fragmentPos - (vertexPos + vertexMarker.size()));
+
+    // Gets fragment shader from shader file
+    std::string fs = shaderSrc.substr(fragmentPos + fragmentMarker.size());
 
     // Initializes shader from vertex and fragment shader
     unsigned int shader = CreateShader(vs, fs);
@@ -267,9 +273,20 @@ int main()
         return -1;
     }
 
-    GLuint worldShader = InitializeShader("res/shaders/world.shader");
-    GLuint uiShader = InitializeShader("res/shaders/UI.shader");
-    GLuint textShader = InitializeShader("res/shaders/text.shader");
+    // Resolve project root from the executable location so shader assets are found reliably
+    std::filesystem::path projectRoot;
+
+    std::error_code error;
+    std::filesystem::path executablePath = std::filesystem::canonical("/proc/self/exe", error);
+
+    projectRoot = executablePath.parent_path();
+    
+    if(projectRoot.filename() == "build")
+        projectRoot = projectRoot.parent_path();
+
+    GLuint worldShader = InitializeShader((projectRoot / "res/shaders/world.shader").string());
+    GLuint uiShader = InitializeShader((projectRoot / "res/shaders/UI.shader").string());
+    GLuint textShader = InitializeShader((projectRoot / "res/shaders/text.shader").string());
 
     // Initializes new CircleRenderer object for rendering particles
     gfx::CircleRenderer renderer;
