@@ -19,6 +19,18 @@
 
 namespace UI
 {
+    struct Events
+    {
+        static bool leftMouseDown;
+        static bool leftMouseDownStartedOnPanel;
+        static std::array<double, 2> pressedPos;
+
+        static bool draggingPanel;
+
+        static bool defaultCursor;
+        static bool horResizeCursor;
+    };
+
     // Structure: element definition
     struct element
     {
@@ -28,14 +40,14 @@ namespace UI
         private:
             unsigned int id;
 
-            public:
-                element() = default;
-                element(unsigned int id) : id(id) {} // ID cannot be used after it is created
+        public:
+            element() = default;
+            element(unsigned int id) : id(id) {} // ID cannot be used after it is created
 
-                bool operator==(const element& other) const
-                {
-                    return id == other.id;
-                }
+            bool operator==(const element& other) const
+            {
+                return id == other.id;
+            }
     };
 
     // Class: UI element
@@ -49,7 +61,6 @@ namespace UI
 
             GLuint posLoc;
             GLuint scaleLoc;
-            GLuint aspectLoc;
             GLuint colorLoc;
 
             // Attributes of all objects
@@ -91,6 +102,31 @@ namespace UI
         bool active; // If each element is active, true by default
     };
 
+    class World 
+    {
+        friend class Panel;
+
+        protected:
+            // UI / rendering variables
+            GLuint vao = 0;
+            GLuint vbo = 0;
+            GLuint ebo = 0;
+
+            GLuint posLoc;
+            GLuint scaleLoc;
+            GLuint colorLoc;
+
+            float aspect;
+
+            // Red
+            std::array<float, 4> color = {1, .05, .05, .5};
+
+        public:
+            World(); // Default world constructor
+            void LeftDrag(GLFWwindow *window, GLuint shader); // Drag callback
+
+    };
+
     class Panel
     {
         unsigned int nextId;
@@ -104,6 +140,12 @@ namespace UI
         GLuint vao, vbo, ebo;
         GLuint posLoc, colorLoc, scaleLoc;
 
+        UI::World world; // Instance of world, defines outside of panel
+
+        Events events; // Defines all current events;
+
+        void RecalculateElementPositions(float oldLength);
+
         unsigned int indices[6] = { // What indices from the positions to use to render each triangle (instead of buffering extra positions)
                 0, 1, 2,
                 2, 3, 0
@@ -115,8 +157,13 @@ namespace UI
                 0.5f,  0.5f,
                 -0.5f,  0.5f
             };
+        
+        GLFWcursor *resizeHorizontalCursor;
+
+        float edge; // Edge of panel as drawn
 
         static void ScrollCallback(GLFWwindow *window, double xOffset, double yOffset); // Function ran when scroll input is detected
+        static void MouseButtonCallback(GLFWwindow *window, int button, int action, int mods); // Function ran when mouse button input is detected
 
         public:
             Panel(); // Default constructor; defines empty panel
@@ -124,14 +171,15 @@ namespace UI
             void AddElement(Element element); // Adds new element to panel
             void Init(GLuint shader, GLFWwindow *window); // Loads panel and all elements to be drawn
             void Draw(GLuint shader); // Draws panel and  all attached elements
+            void UpdateCursor(GLFWwindow *window); // Updates the current displayed cursor
+
+            void Update(GLuint shader, GLFWwindow *window); // Panel update function; ran every frame
 
             std::vector<std::vector<float>> *GetGridValues(element &grid); // Return the current interactions matrix for a grid
 
             // Constructors for other elements
-            element AddGrid(std::array<float, 4> position, unsigned int numberOfBoxes, std::vector<std::vector<float>> *values, bool useInputs, float aspect); // Create a grid
+            element AddGrid(float xOffset, float yCenter, float length, unsigned int numberOfBoxes, std::vector<std::vector<float>> *values, bool useInputs, float aspect); // Create a grid
             element AddTextElement(float fontSize, unsigned int charactersPerLine, std::array<float, 2> center, std::string font, bool autoShrink, std::string text="", bool startAtCenter=true); // Create a panel
-
-            // TODO: ANYTHING INVOLVING A PANEL'S ELEMENTS
     };
 
     // Class: Grid
@@ -153,23 +201,30 @@ namespace UI
         bool useInputs; // If grid spaces should look for inputs
         float aspect; // Aspect ratio of scene; prevents morphing
 
+        float panelCenter;
+
+        float xOffset;
+        float yCenter;
+        float length;
+
         static void Interact(); // Checks for mouse input to update grid spaces if any is detected
 
         Grid(); // Default constructor; defines empty grid
-        Grid(std::array<float, 4> position, unsigned int numberOfBoxes, std::vector<std::vector<float>> *values, bool useInputs, float aspect); // Full constructor;
+        Grid(float xOffset, float yCenter, float length, unsigned int numberOfBoxes, std::vector<std::vector<float>> *values, bool useInputs, float aspect); // Full constructor;
 
         void Init(GLuint shader) override; // Loads grid squares to be drawn
         void Draw(GLuint shader) override; // Draws all grid spaces
+        void RecalculateSquares(); // Recalculates the position for each square
         void Scroll(GLFWwindow *window, double xOffset, double yOffset) override; // Callback when mouse scrolls over element
     };
 
-    struct Character {
+    struct Character 
+    {
         unsigned int textureID; // ID handle of the glyph texture
         glm::ivec2 size; // Size of glyph
         glm::ivec2 bearing; // Offset from baseline to left/top of glyph
         FT_Pos advance; // Offset to advance to next glyph
     };
-
 
     // Class: Text Area (later add ability to change text)
     class TextArea : public Element

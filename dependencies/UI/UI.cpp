@@ -2,6 +2,21 @@
 
 namespace UI
 {
+    // All definitions for events struct variables
+    #pragma region Events
+
+    bool Events::leftMouseDown = false;
+    bool Events::leftMouseDownStartedOnPanel = false;
+
+    std::array<double, 2> Events::pressedPos = {0, 0};
+
+    bool Events::draggingPanel;
+
+    bool Events::defaultCursor = true;
+    bool Events::horResizeCursor = false;
+
+    #pragma endregion
+
     // Element class functions
     #pragma region Element
 
@@ -15,20 +30,71 @@ namespace UI
 
     #pragma endregion
 
+    // World class functions
+    #pragma region World
+
+    World::World() {}
+
+    /* Left Drag Click Callback */
+    // Called every time is left drag clicked
+    void World::LeftDrag(GLFWwindow *window, GLuint shader)
+    {
+        // Get current cursor position
+        double x1, y1;
+        glfwGetCursorPos(window, &x1, &y1);
+
+        // Get current window aspect
+        int w, h;
+        glfwGetWindowSize(window, &w, &h);
+
+        // Normalize x and y values
+        // Divide by width/height, multiply by two, and subtract one
+        // Normalizes value to [0, 1600] to [-1, 1]
+        x1 = (x1/w)*2-1;
+        y1 = -((y1/h)*2-1);
+
+        // Get previous mouse pos
+        float x0 = Events::pressedPos[0];
+        float y0 = Events::pressedPos[1];
+
+        // Draw rectangle from where cursor was to where it is
+        // What shader and vertex array OpenGL should use to render
+        glUseProgram(shader);
+        glBindVertexArray(vao);
+
+        // Binds shader variables
+        glUniform2f(posLoc, (x0+x1)/2, (y0+y1)/2);
+        glUniform2f(scaleLoc, fabs(x1-x0), fabs(y1-y0));
+        glUniform4f(colorLoc, color[0], color[1], color[2], color[3]);
+
+        // Draws circle(aka triangle fan)
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+
+        // Unbinds intermediates
+        glBindVertexArray(0);
+    }
+
+    #pragma endregion
 
     // Panel class functions
     #pragma region Panel
 
     /* Full Panel Constructor */
     // Creates a new panel with all the information needed to draw it
-    Panel::Panel(int side, float length, std::array<float, 4> color): side((!side) ? -1 : 1), length(length), color(color), nextId(0), vao(0), vbo(0), ebo(0), posLoc(-1), colorLoc(-1), scaleLoc(-1) {}
+    Panel::Panel(int side, float length, std::array<float, 4> color): 
+        side((!side) ? -1 : 1), length(length), color(color), nextId(0), vao(0), vbo(0), ebo(0), posLoc(-1), colorLoc(-1), scaleLoc(-1) {}
 
     /* Grid Creation */
     // Creates a new instance of grid under the panel
-    element Panel::AddGrid(std::array<float, 4> position, unsigned int numberOfBoxes, std::vector<std::vector<float>> *values, bool useInputs, float aspect)
+    element Panel::AddGrid(float xOffset, float yCenter, float length, unsigned int numberOfBoxes, std::vector<std::vector<float>> *values, bool useInputs, float aspect)
     {
         // Create new grid
-        Grid grid(position, numberOfBoxes, values, useInputs, aspect);
+        Grid grid(xOffset, yCenter, length, numberOfBoxes, values, useInputs, aspect);
+
+        if(side == -1)
+            grid.panelCenter = -1 + this->length / 2.0f;
+        else
+            grid.panelCenter = 1 - this->length / 2.0f;
 
         // Create element based on reference to object, value, and if it is active(true by default)
         // Smart pointers: delete themselves to make our lives easier
@@ -119,6 +185,24 @@ namespace UI
         // Unbinds intermediates
         glBindVertexArray(0);
 
+        // Updates worlds rendering stuff
+        world.vbo = vbo;
+        world.ebo = ebo;
+        world.vao = vao;
+
+        world.posLoc = posLoc;
+        world.scaleLoc = scaleLoc;
+        world.colorLoc = colorLoc;
+
+        // Update world's aspect ratio
+        int width, height;
+
+        // Retrieve the window's current dimensions
+        glfwGetWindowSize(window, &width, &height);
+
+        // Calculate the aspect ratio
+        world.aspect = (float)width / (float)height;
+
         // Initializes all other elements
         for (auto &e : elements)
         {
@@ -128,11 +212,15 @@ namespace UI
                 e.ptr->Init(shader); // Runs element's init function
         }
 
+        resizeHorizontalCursor = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
+
         // Attach instance of panel with window
         glfwSetWindowUserPointer(window, this);
 
         // Initialize inputs
         glfwSetScrollCallback(window, ScrollCallback);
+
+        glfwSetMouseButtonCallback(window, MouseButtonCallback);
     }
 
     /* Panel Drawing */
@@ -150,6 +238,28 @@ namespace UI
             std::cout << "Warning: shader uniform not found." << std::endl;
         }
 
+        // Calculate edge of panel
+        if(side == -1)
+            edge = -1.0f + length;
+        else
+            edge = 1.0f - length;
+
+        // Gets current viewport
+        int viewport[4]; // Stores OpenGL viewport dimensions
+        glGetIntegerv(GL_VIEWPORT, viewport); // Retrieves said viewport
+
+        // Calculation of panel's left / right boundaries
+        const float panelX0 = (side == -1) ? -1.0f : 1.0f - length;
+        const float panelX1 = (side == -1) ? -1.0f + length : 1.0f;
+
+        // Converts panel left edge and width into pixel-space cordinates
+        const int scissorX = static_cast<int>((panelX0 + 1.0f) * 0.5f * viewport[2]);
+        const int scissorWidth = std::max(0, static_cast<int>((panelX1 - panelX0) * 0.5f * viewport[2]));
+
+        // Turns on scissor mode and tells OpenGL to only draw inside viewport bounds
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(scissorX, viewport[1], scissorWidth, viewport[3]);
+
         // Binds shader variables
         glUniform2f(posLoc, (side + side*(1-length))/2, 0);
         glUniform2f(scaleLoc, fabs(side*(1-length)-side), 2);
@@ -157,10 +267,6 @@ namespace UI
 
         // Draws rectangle
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
-
-        // Unbinds intermediates
-        glBindVertexArray(0);
-        
 
         // Draws all other elements
         for (auto &e : elements)
@@ -170,6 +276,12 @@ namespace UI
                 // Runs element's Draw() function (actual Element class's is overriden)
                 e.ptr->Draw(shader); // Runs element's draw function
         }
+
+        // Re-disables scissor mode after everything is rendered
+        glDisable(GL_SCISSOR_TEST);
+
+        // Unbinds intermediates
+        glBindVertexArray(0);
     }
 
     /* Scroll Callback */
@@ -219,6 +331,62 @@ namespace UI
         }
     }
 
+    /* Mouse Input Callback */
+    // Ran whenever the state of a mouse button changes
+    void Panel::MouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
+    {
+        // Get panel instance
+        Panel* panel = static_cast<Panel*>(glfwGetWindowUserPointer(window));
+
+        // Get current cursor position
+        double x, y;
+        glfwGetCursorPos(window, &x, &y);
+
+        // Get current window aspect
+        int w, h;
+        glfwGetWindowSize(window, &w, &h);
+
+        // Normalize x and y values
+        // Divide by width/height, multiply by two, and subtract one
+        // Normalizes value to [0, 1600] to [-1, 1]
+        x = (x/w)*2-1;
+        y = -((y/h)*2-1);
+
+        // What mouse button was clicked
+        if(button == GLFW_MOUSE_BUTTON_LEFT)
+        {
+            // Was it clicked or released, or has it been down
+            if(!Events::leftMouseDown && action == GLFW_PRESS) // Just clicked
+            {
+                // Tell event struct it has been clicked and where
+                Events::leftMouseDown = true;
+                Events::pressedPos = {x, y};
+
+                // If is on border of panel
+                if(Events::horResizeCursor)
+                {
+                    Events::draggingPanel = true;
+                }
+                // Make sure scroll occurred somewhere on the panel(x/w)*2-1
+                else if((panel->side == -1 && x < (-1+panel->length)) || (panel->side == 1 && x > (1-panel->length))) // Only continue if scroll area was within the panel.length
+                {
+                    Events::leftMouseDownStartedOnPanel = true;
+                }
+                // Is in the world
+                else
+                {
+                    Events::leftMouseDownStartedOnPanel = false;
+                }
+            }
+            else if(Events::leftMouseDown && action == GLFW_RELEASE) // Has been clicked; just released
+            {
+                Events::leftMouseDown = false;
+                Events::pressedPos = {0, 0};
+                Events::draggingPanel = false;
+            }
+        }
+    }
+
     /* Grid Value Fetcher */
     // Gets current values for a given grid
     std::vector<std::vector<float>> *Panel::GetGridValues(element &grid)
@@ -244,6 +412,160 @@ namespace UI
         return nullptr;
     }
 
+    /* Cursor Update Function */
+    // Updates cursor that is currently displayed
+    void Panel::UpdateCursor(GLFWwindow *window)
+    {
+        // Get current cursor position
+        double x, y;
+        glfwGetCursorPos(window, &x, &y);
+
+        // Get current window aspect
+        int w, h;
+        glfwGetWindowSize(window, &w, &h);
+
+        // Normalize x and y values
+        // Divide by width/height, multiply by two, and subtract one
+        // Normalizes value to [0, 1600] to [-1, 1]
+        x = (x/w)*2-1;
+        y = -((y/h)*2-1);
+
+        // Conditions for when special cursors are used
+        if(((edge - .005) <= x) && (x <= edge + .005) && !Events::leftMouseDown) // Is cursor currently within ten pixels of the panel egde -> set to resize panel cursor
+        {
+            glfwSetCursor(window, resizeHorizontalCursor);
+            Events::defaultCursor = false;
+            Events::horResizeCursor = true;
+        }
+        else if(!Events::defaultCursor)
+        {
+            glfwSetCursor(window, 0);
+            Events::defaultCursor = true;
+            Events::horResizeCursor = false;
+        }
+    }
+
+    /* Element Position Recalculation */
+    // When rescaling panel, repositions elements to be properly aligned
+    void Panel::RecalculateElementPositions(float oldLength)
+    {
+        // Length neglegible; no need to resize
+        if (std::fabs(length - oldLength) < 1e-6f)
+            return;
+
+        // Calculate the old and new positions of the panel's edge
+        const float oldEdge = (side == -1) ? -1.0f + oldLength : 1.0f - oldLength;
+        const float newEdge = (side == -1) ? -1.0f + length : 1.0f - length;
+
+        // Get difference between two
+        const float xDelta = newEdge - oldEdge;
+
+        // Defines the start and end of panel
+        const float panelStart = (side == -1) ? -1.0f : newEdge;
+        const float panelEnd = (side == -1) ? newEdge : 1.0f;
+
+        // Loop through each element
+        for (auto &element : elements)
+        {
+            // If element is grid, recalculate grid's squares and update its center
+            if (auto *grid = dynamic_cast<Grid*>(element.ptr.get()))
+            {
+                // Grid's intended center based on new size
+                const float desiredCenter = (side == -1 ? -1.0f + length / 2.0f : 1.0f - length / 2.0f) + grid->xOffset;
+
+                // Converts logical size to visible(aka, includes aspect ratio)
+                const float visibleHalfWidth = grid->length / (2.0f * std::max(grid->aspect, 1e-6f));
+
+                // Farthest left/right positions grid can occupy to remain inside of the panel
+                const float minCenter = panelStart + visibleHalfWidth;
+                const float maxCenter = panelEnd - visibleHalfWidth;
+
+                // Finds the best center based on the goal, if it is possible
+                const float clampedCenter = std::max(minCenter, std::min(maxCenter, desiredCenter));
+
+                grid->panelCenter = clampedCenter - grid->xOffset;
+                grid->RecalculateSquares();
+            }
+            // If element is anything else, change its x position based on the panel's position changes
+            else
+            {
+                // Total width of element currently
+                const float width = element.ptr->pos[2] - element.ptr->pos[0];
+
+                // Left panel case
+                if (side == -1)
+                {
+                    // Prevents panel moving past right edge
+                    const float clampedX1 = std::min(panelEnd, element.ptr->pos[2] + xDelta);
+
+                    // Updates its position
+                    element.ptr->pos[0] = clampedX1 - width;
+                    element.ptr->pos[2] = clampedX1;
+                }
+                // Right panel case
+                else
+                {
+                    // Prevents panel moving past left edge
+                    const float clampedX0 = std::max(panelStart, element.ptr->pos[0] + xDelta);
+
+                    // Updates its position
+                    element.ptr->pos[0] = clampedX0;
+                    element.ptr->pos[2] = clampedX0 + width;
+                }
+            }
+        }
+    }
+
+    /* Panel Update Function */
+    // Updates everything related to the panel
+    void Panel::Update(GLuint shader, GLFWwindow *window)
+    {
+        UpdateCursor(window);
+
+        Draw(shader);
+
+        // If dragging is occuring outside of the panel, call the world's drag function
+
+        // Get current cursor position
+        double x, y;
+        glfwGetCursorPos(window, &x, &y);
+
+        // Get current window aspect
+        int w, h;
+        glfwGetWindowSize(window, &w, &h);
+
+        // Normalize x and y values
+        // Divide by width/height, multiply by two, and subtract one
+        // Normalizes value to [0, 1600] to [-1, 1]
+        x = (x/w)*2-1;
+        y = -((y/h)*2-1);
+
+        if(!((side == -1 && x < (-1+length)) || (side == 1 && x > (1-length)))) // Only continue if scroll area was within the panel.length
+            if(Events::leftMouseDown && !Events::leftMouseDownStartedOnPanel && !Events::draggingPanel)
+                world.LeftDrag(window, shader);
+        
+        // Should panel be resized
+        if(Events::leftMouseDown && Events::draggingPanel)
+        {
+            const float oldLength = length;
+
+            // Get new panel length based on panel position
+            if(side == -1)
+                length = x + 1.0f;
+            else
+                length = 1.0f - x;
+
+            // Restrict length
+            if (length < 0.0f)
+                length = 0.0f;
+            else if (length > 2.0f)
+                length = 2.0f;
+
+            // Recalculate the positions of all entities for the new panel
+            RecalculateElementPositions(oldLength);
+        }
+    }
+
     #pragma endregion
 
     // Grid class functions
@@ -251,31 +573,31 @@ namespace UI
 
     /* Full Grid Constructor */
     // Creates a new grid with all information needed to be drawn
-    Grid::Grid(std::array<float, 4> position, unsigned int numberOfBoxes, std::vector<std::vector<float>> *values, bool useInputs, float aspect):
-        boxesCount(numberOfBoxes), values(values), Element(position), useInputs(useInputs), aspect(aspect) {}
+    Grid::Grid(float xOffset, float yCenter, float length, unsigned int numberOfBoxes, std::vector<std::vector<float>> *values, bool useInputs, float aspect):
+        xOffset(xOffset), yCenter(yCenter), length(length), boxesCount(numberOfBoxes), values(values), Element(), useInputs(useInputs), aspect(aspect) {}
 
-    /* Drawing Initialization */
-    // Prepares all parts of the grid to be drawn -- anything that does not need to be ran every frame
-    void Grid::Init(GLuint shader)
+    /* Positioning Calculation */
+    // Calculates the position for each square on a grid
+    void Grid::RecalculateSquares()
     {
+        // Remove all boxes
+        boxes.clear();
+
         // Lock values based on what is expected
-        float x0 = std::min(pos[0], pos[2]);
-        float x1 = std::max(pos[0], pos[2]);
-        float y0 = std::max(pos[1], pos[3]);
-        float y1 = std::min(pos[1], pos[3]);
+        float x0 = panelCenter + xOffset - length/2;
+        float x1 = panelCenter + xOffset + length/2;
+        float y0 = yCenter - length/2;
+        float y1 = yCenter + length/2;
 
         // Get how big each cell should be
         float cellW = (x1 - x0) / boxesCount;
         float cellH = (y1 - y0) / boxesCount;
 
-        // Get where the y axis is centered around
-        float centerY = (y0 + y1) * 0.5f;
-
         // Prepares each square
         std::array<float, 4> color;
         std::array<float, 4> position;
 
-        float centerX;
+        float centerX = panelCenter + xOffset;
 
         for(int i = 0; i < boxesCount; i++)
         {
@@ -299,20 +621,23 @@ namespace UI
                 position[0] = x0 + i * cellW;
                 position[2] = position[0] + cellW;
 
-                position[1] = centerY + (boxesCount/2.0 - j) * cellH;
+                position[1] = yCenter + (boxesCount/2.0 - j) * cellH;
                 position[3] = position[1] - cellH;
 
                 // Fixes xs to make them more square-ular[i][j], 0,
-                centerX = (pos[0] + pos[2])/2.0;
                 position[0] = centerX + (position[0] - centerX) / aspect;
                 position[2] = centerX + (position[2] - centerX) / aspect;
 
                 boxes.emplace_back(position, color);
             }
         }
+    }
 
-        // Update element's position
-        pos = {centerX+(x0-centerX)/aspect, y0, centerX+(x1-centerX)/aspect, y1};
+    /* Drawing Initialization */
+    // Prepares all parts of the grid to be drawn -- anything that does not need to be ran every frame
+    void Grid::Init(GLuint shader)
+    {
+        RecalculateSquares();
 
         // Loops thru each square to prepare for rendering
         // Creates vertex array
@@ -344,20 +669,13 @@ namespace UI
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices, GL_STATIC_DRAW);
 
 
-        // Enables attribute pointer; only parameter is index to enable
+        // Unbind intermediates
         glEnableVertexAttribArray(0);
-    }
-
-    void Grid::Draw(GLuint shader)
-    {
-        // What shader and vertex array OpenGL should use to render
-        glUseProgram(shader);
-        glBindVertexArray(vao);
 
         // Where each variable is located in the shader so they can be set
-        GLint posLoc = glGetUniformLocation(shader, "u_Position");
-        GLint scaleLoc = glGetUniformLocation(shader, "u_Scale");
-        GLint colorLoc = glGetUniformLocation(shader, "desiredColor");
+        posLoc = glGetUniformLocation(shader, "u_Position");
+        scaleLoc = glGetUniformLocation(shader, "u_Scale");
+        colorLoc = glGetUniformLocation(shader, "desiredColor");
 
 
         // Makes sure shader works correctly
@@ -365,6 +683,13 @@ namespace UI
         {
             std::cout << "Warning: shader uniform not found." << std::endl;
         }
+    }
+
+    void Grid::Draw(GLuint shader)
+    {
+        // What shader and vertex array OpenGL should use to render
+        glUseProgram(shader);
+        glBindVertexArray(vao);
 
         // Loops through each rectangle in given rectangles
         for (const Square& s : boxes)
@@ -377,7 +702,6 @@ namespace UI
             // Draws circle(aka triangle fan)
             glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
         }
-
 
         // Unbinds intermediates
         glBindVertexArray(0);

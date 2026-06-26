@@ -15,11 +15,11 @@ const double repelRange = .013 * clusterFactor;
 const double interactForce = 50;
 const double repelForce = 5;
 
-const double programSpeed = .5;
+const double programSpeed = .1;
 
 const double radius = .01;
 
-const int count = 10000;
+const int count = 1000;
 unsigned int variety = 2; // Total number of different particle types to use; not marked as const as it is changed if too large in main()
 
 const bool punishClusters = false;
@@ -334,31 +334,7 @@ int main()
     std::array<float, 2> position = {-1, 0};
     UI::element text = panel.AddTextElement(20, 0, position, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", false, "", false);
 
-
-    // Interactions matrix creation
-    const float buffer = .05;
-    const float size = .25;
-
-    const float yCenter = .5;
-
-    // Center of drawing area calculation
-    float sideVal = (!side) ? -1 : 1;
-
-    float xStart = sideVal-(sideVal*buffer);
-    float xEnd = sideVal*(1-(length))+(sideVal*buffer);
-
-    float center = (xStart+xEnd)/2;
-
-    // Where to place interactions matrix
-    float x0 = center-size;
-    float x1 = center+size;
-    float y0 = yCenter+size;
-    float y1 = yCenter-size;
-
-    // Top left & bottom right corners
-    std::array<float, 4> positions = {x0, y0, x1, y1};
-
-    UI::element grid = panel.AddGrid(positions, variety, &interactions, true, aspect);
+    UI::element grid = panel.AddGrid(0, .5, .4, variety, &interactions, true, aspect);
 
     // Initialize everything
     panel.Init(uiShader, window);
@@ -463,7 +439,7 @@ int main()
         // Draws all circles
         renderer.DrawBatch(circles, worldShader, aspect);
 
-        panel.Draw(uiShader);
+        panel.Update(uiShader, window);
 
         // Clears user events buffer
         glfwPollEvents();
