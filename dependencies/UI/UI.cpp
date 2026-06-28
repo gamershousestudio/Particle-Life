@@ -9,6 +9,14 @@ namespace UI
     bool Events::leftMouseDownStartedOnPanel = false;
 
     std::array<double, 2> Events::pressedPos = {0, 0};
+    std::array<double, 2> Events::selectionStartPos = {0, 0};
+    bool Events::selectionRequested = false;
+
+    bool Events::rightMouseDown = false;
+    bool Events::rightMouseDownStartedOnPanel = false;
+    std::array<double, 2> Events::rightSelectionStartPos = {0, 0};
+    std::array<double, 2> Events::rightSelectionCurrentPos = {0, 0};
+    bool Events::rightSelectionActive = false;
 
     bool Events::draggingPanel;
 
@@ -71,6 +79,94 @@ namespace UI
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 
         // Unbinds intermediates
+        glBindVertexArray(0);
+    }
+
+    /* Selection Renderer */
+    // Renders little boxes around particles within the selected area
+    void World::DisplaySelection(GLuint shader)
+    {
+        // If nothing is selected, don't display anything
+        if (selected.empty())
+            return;
+
+        // Bind shader
+        glUseProgram(shader);
+        glBindVertexArray(vao);
+
+        // How many stuff to loop for
+        const size_t selectionCount = std::min(selected.size(), selectedMarkerSizes.size());
+
+        // Loop through each particle
+        for (size_t i = 0; i < selectionCount; ++i)
+        {
+            // Get current particle to view
+            void *entry = selected[i];
+
+            // If particle is null, move on
+            if (!entry)
+                continue;
+
+            // Get the body
+            body::Body *body = static_cast<body::Body*>(entry);
+            const auto &position = body->GetPosition();
+
+            // How big each box should be
+            const float markerRadius = std::max(0.001f, selectedMarkerSizes[i]);
+            const float boxSize = markerRadius * 2.0f;
+            const float boxWidth = aspect > 0.0f ? boxSize / aspect : boxSize;
+
+            // Bind stuff to draw
+            glUniform2f(posLoc, position[0], position[1]);
+            glUniform2f(scaleLoc, boxWidth, boxSize);
+            glUniform4f(colorLoc, color[0], color[1], color[2], color[3]);
+
+            // Draw square
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+        }
+
+        glBindVertexArray(0);
+    }
+
+    /* Display Of Area Selector */
+    // Renderers area selector as rectangle
+    void World::DisplayAreaSelection(GLuint shader)
+    {
+        // If right selection not active, no point in being here...
+        if (!Events::rightSelectionActive)
+            return;
+
+        // Bind shader stuff
+        glUseProgram(shader);
+        glBindVertexArray(vao);
+
+        // Get positions for triangle
+        const double x0 = Events::rightSelectionStartPos[0];
+        const double y0 = Events::rightSelectionStartPos[1];
+        const double x1 = Events::rightSelectionCurrentPos[0];
+        const double y1 = Events::rightSelectionCurrentPos[1];
+
+        // Turn said positions into accurate values
+        const double minX = std::min(x0, x1);
+        const double maxX = std::max(x0, x1);
+        const double minY = std::min(y0, y1);
+        const double maxY = std::max(y0, y1);
+
+        // Use positions to get the width, height, and center
+        const double width = std::max(0.001, maxX - minX);
+        const double height = std::max(0.001, maxY - minY);
+        const double centerX = (minX + maxX) * 0.5;
+        const double centerY = (minY + maxY) * 0.5;
+
+        // Bind uniforms
+        glUniform2f(posLoc, static_cast<float>(centerX), static_cast<float>(centerY));
+        glUniform2f(scaleLoc, static_cast<float>(width), static_cast<float>(height));
+        glUniform4f(colorLoc, areaSelectionColor[0], areaSelectionColor[1], areaSelectionColor[2], areaSelectionColor[3]);
+
+        // Draw elements
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+
+        // Unbind intermediates
         glBindVertexArray(0);
     }
 
@@ -319,7 +415,7 @@ namespace UI
                 elementPtr = panel->elements[i].ptr.get();
 
                 // Check if mouse is within object's position
-                if((elementPtr->pos[0] <= x && x <= elementPtr->pos[2]) && (elementPtr->pos[3] <= y && y <= elementPtr->pos[1]))
+                if((elementPtr->pos[0] <= x && x <= elementPtr->pos[2]) && (elementPtr->pos[1] <= y && y <= elementPtr->pos[3]))
                 {
                     // Call said object's scroll
                     elementPtr->Scroll(window, xOffset, yOffset);
@@ -358,9 +454,14 @@ namespace UI
             // Was it clicked or released, or has it been down
             if(!Events::leftMouseDown && action == GLFW_PRESS) // Just clicked
             {
+                // Disable the blue area-selection overlay when a left-click selection starts
+                Events::rightSelectionActive = false;
+
                 // Tell event struct it has been clicked and where
                 Events::leftMouseDown = true;
                 Events::pressedPos = {x, y};
+                Events::selectionStartPos = {x, y};
+                Events::selectionRequested = false;
 
                 // If is on border of panel
                 if(Events::horResizeCursor)
@@ -383,6 +484,37 @@ namespace UI
                 Events::leftMouseDown = false;
                 Events::pressedPos = {0, 0};
                 Events::draggingPanel = false;
+                Events::selectionRequested = !Events::leftMouseDownStartedOnPanel;
+            }
+        }
+        else if(button == GLFW_MOUSE_BUTTON_RIGHT)
+        {
+            if(action == GLFW_PRESS) // Right mouse was just pressed
+            {
+                // Update event information
+                Events::rightMouseDown = true;
+                Events::rightSelectionStartPos = {x, y};
+                Events::rightSelectionCurrentPos = {x, y};
+                Events::rightSelectionActive = false;
+
+                // Clear the red particle selection so only the blue area-selection can remain active
+                panel->world.selected.clear();
+                panel->world.selectedMarkerSizes.clear();
+
+                // Make sure click did/didn't start on panel
+                if((panel->side == -1 && x < (-1+panel->length)) || (panel->side == 1 && x > (1-panel->length)))
+                    Events::rightMouseDownStartedOnPanel = true;
+                else
+                {
+                    Events::rightMouseDownStartedOnPanel = false;
+                    Events::rightSelectionActive = true;
+                }
+            }
+            else if(action == GLFW_RELEASE) // Right click was released
+            {
+                // Update events
+                Events::rightMouseDown = false;
+                Events::rightSelectionCurrentPos = {x, y};
             }
         }
     }
@@ -522,6 +654,25 @@ namespace UI
     {
         UpdateCursor(window);
 
+        // If right mouse is down and didnt start on panel -> do right mouse drag
+        if (Events::rightMouseDown && !Events::rightMouseDownStartedOnPanel)
+        {
+            // Get cursor position
+            double xCursor, yCursor;
+            glfwGetCursorPos(window, &xCursor, &yCursor);
+
+            // Get aspect ration
+            int cursorW, cursorH;
+            glfwGetWindowSize(window, &cursorW, &cursorH);
+
+            // Scale cursor position by aspect ratio
+            const double cursorX = (xCursor / cursorW) * 2.0 - 1.0;
+            const double cursorY = -((yCursor / cursorH) * 2.0 - 1.0);
+
+            // Record where trigger started
+            Events::rightSelectionCurrentPos = {cursorX, cursorY};
+        }
+
         Draw(shader);
 
         // If dragging is occuring outside of the panel, call the world's drag function
@@ -588,6 +739,8 @@ namespace UI
         float x1 = panelCenter + xOffset + length/2;
         float y0 = yCenter - length/2;
         float y1 = yCenter + length/2;
+
+        this->pos = {x0, y0, x1, y1};
 
         // Get how big each cell should be
         float cellW = (x1 - x0) / boxesCount;
@@ -741,7 +894,7 @@ namespace UI
             size_t c = i % (boxesCount); // Column index
 
             // Check if mouse is within square
-            if(square.pos[0] <= x && x <= square.pos[2] && square.pos[1] <= y && y <= square.pos[3])
+            if(square.pos[0] <= x && x <= square.pos[2] && square.pos[3] <= y && y <= square.pos[1])
             {
                 // Update value
                 newValue = (*values)[r][c] - .1*yOffset;

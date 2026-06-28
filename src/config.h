@@ -19,6 +19,9 @@
 #include <cstdlib>
 #include <ctime>
 
+#include <algorithm>
+#include <cmath>
+
 #include <chrono>
 
 #include <ranges>

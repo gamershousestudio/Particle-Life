@@ -8,6 +8,7 @@
 #include <array>
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 #include <map>
 #include <memory>
 
@@ -17,6 +18,8 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include "body.h"
+
 namespace UI
 {
     struct Events
@@ -24,6 +27,14 @@ namespace UI
         static bool leftMouseDown;
         static bool leftMouseDownStartedOnPanel;
         static std::array<double, 2> pressedPos;
+        static std::array<double, 2> selectionStartPos;
+        static bool selectionRequested;
+
+        static bool rightMouseDown;
+        static bool rightMouseDownStartedOnPanel;
+        static std::array<double, 2> rightSelectionStartPos;
+        static std::array<double, 2> rightSelectionCurrentPos;
+        static bool rightSelectionActive;
 
         static bool draggingPanel;
 
@@ -120,10 +131,16 @@ namespace UI
 
             // Red
             std::array<float, 4> color = {1, .05, .05, .5};
+            std::array<float, 4> areaSelectionColor = {0.15f, 0.35f, 1.0f, 0.25f};
 
         public:
+            std::vector<void*> selected;
+            std::vector<float> selectedMarkerSizes;
+
             World(); // Default world constructor
             void LeftDrag(GLFWwindow *window, GLuint shader); // Drag callback
+            void DisplaySelection(GLuint shader); // Render little boxes around selected particles
+            void DisplayAreaSelection(GLuint shader); // Render the persistent right-click area selection rectangle
 
     };
 
@@ -174,6 +191,9 @@ namespace UI
             void UpdateCursor(GLFWwindow *window); // Updates the current displayed cursor
 
             void Update(GLuint shader, GLFWwindow *window); // Panel update function; ran every frame
+
+            World& GetWorld() { return world; }
+            const World& GetWorld() const { return world; }
 
             std::vector<std::vector<float>> *GetGridValues(element &grid); // Return the current interactions matrix for a grid
 
@@ -261,7 +281,10 @@ namespace UI
     };
 
     // Class: Slider
-
+    class Slider : public Element
+    {
+        
+    }
 }
 
 #endif

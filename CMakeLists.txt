@@ -45,6 +45,7 @@ target_link_libraries(UI PUBLIC
 # Includes dependencies/UI as one of the root link_directories
 target_include_directories(UI PUBLIC
     dependencies/UI
+    dependencies/Body
 )
 
 # Links ParticleRenderer and Body

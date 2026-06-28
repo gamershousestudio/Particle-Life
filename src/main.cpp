@@ -329,6 +329,7 @@ int main()
     #pragma region UI
     // Panel creation
     UI::Panel panel{side, length, {1, 1, 1, .5f}};
+    auto &world = panel.GetWorld();
 
     // TEXT STUFF
     std::array<float, 2> position = {-1, 0};
@@ -439,10 +440,71 @@ int main()
         // Draws all circles
         renderer.DrawBatch(circles, worldShader, aspect);
 
+        world.DisplaySelection(uiShader);
+        world.DisplayAreaSelection(uiShader);
+
         panel.Update(uiShader, window);
 
         // Clears user events buffer
         glfwPollEvents();
+
+        // Do particles need to be selected
+        if (UI::Events::selectionRequested)
+        {
+
+            // "Accept" request
+            UI::Events::selectionRequested = false;
+            world.selected.clear();
+            world.selectedMarkerSizes.clear();
+
+            // Make sure event didn't start on panel
+            if (!UI::Events::leftMouseDownStartedOnPanel)
+            {
+                // Get current mouse position
+                double xCurrent, yCurrent;
+                glfwGetCursorPos(window, &xCurrent, &yCurrent);
+
+                // Get current window aspect ratio
+                int w, h;
+                glfwGetWindowSize(window, &w, &h);
+
+                // Update cursor pos based on aspect ratio
+                const double currentX = (xCurrent / w) * 2.0 - 1.0;
+                const double currentY = -((yCurrent / h) * 2.0 - 1.0);
+
+                // Get where select event began
+                const double startX = UI::Events::selectionStartPos[0];
+                const double startY = UI::Events::selectionStartPos[1];
+
+                // Make sure drag isn't too small
+                const bool dragSelection = std::hypot(currentX - startX, currentY - startY) > 0.001;
+
+                // Get start and end positions of selection
+                const double minX = std::min(startX, currentX);
+                const double maxX = std::max(startX, currentX);
+                const double minY = std::min(startY, currentY);
+                const double maxY = std::max(startY, currentY);
+
+                // Loop through each particle
+                for (size_t i = 0; i < particles.size(); ++i)
+                {
+                    // Get it's position
+                    const auto &pos = particles[i].GetPosition();
+
+                    // Decide if it is inside the selection
+                    const bool inside = dragSelection
+                        ? (minX <= pos[0] && pos[0] <= maxX && minY <= pos[1] && pos[1] <= maxY)
+                        : (std::fabs(pos[0] - currentX) <= radius * 2.0 && std::fabs(pos[1] - currentY) <= radius * 2.0);
+
+                    // Add to list
+                    if (inside)
+                    {
+                        world.selected.push_back(&particles[i]);
+                        world.selectedMarkerSizes.push_back(static_cast<float>(radius * 1.15));
+                    }
+                }
+            }
+        }
 
         // Swaps visible and write buffers
         glfwSwapBuffers(window);
