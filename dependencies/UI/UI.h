@@ -113,7 +113,7 @@ namespace UI
         bool active; // If each element is active, true by default
     };
 
-    class World 
+    class World
     {
         friend class Panel;
 
@@ -230,7 +230,7 @@ namespace UI
         static void Interact(); // Checks for mouse input to update grid spaces if any is detected
 
         Grid(); // Default constructor; defines empty grid
-        Grid(float xOffset, float yCenter, float length, unsigned int numberOfBoxes, std::vector<std::vector<float>> *values, bool useInputs, float aspect); // Full constructor;
+        Grid(float xOffset, float yCenter, float length, unsigned int numberOfBoxes, std::vector<std::vector<float>> *values, bool useInputs, float aspect); // Full constructor
 
         void Init(GLuint shader) override; // Loads grid squares to be drawn
         void Draw(GLuint shader) override; // Draws all grid spaces
@@ -238,7 +238,7 @@ namespace UI
         void Scroll(GLFWwindow *window, double xOffset, double yOffset) override; // Callback when mouse scrolls over element
     };
 
-    struct Character 
+    struct Character
     {
         unsigned int textureID; // ID handle of the glyph texture
         glm::ivec2 size; // Size of glyph
@@ -283,8 +283,16 @@ namespace UI
     // Class: Slider
     class Slider : public Element
     {
-        
-    }
+        float normalizedValue;
+
+        float length, height;
+
+        Slider(); // Default constructor; defines empty slider
+        Slider(float xOffset, float yCenter, float length, float totalHeight, float defaultValue); // Full constructor
+
+        void Init(GLuint shader) override; // Loads slider rect abd circle
+        void Draw(GLuint shader) override; // Draws slider on window
+    };
 }
 
 #endif

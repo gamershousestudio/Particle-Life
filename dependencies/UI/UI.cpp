@@ -1178,4 +1178,16 @@ namespace UI
         
 
     #pragma endregion
+
+    // Slider class functions
+    #pragma region Slider
+
+    /* Default Slider Constructor */
+    // Just creates a slider, nothin special about it...
+    Slider::Slider() {}
+
+    Slider::Slider(float xOffset, float yCenter, float length, float totalHeight, float defaultValue):
+        
+
+    #pragma endregion
 }
