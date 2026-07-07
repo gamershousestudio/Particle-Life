@@ -5,7 +5,7 @@
 
 const char* programName = "Particle Life";
 
-const std::array<int, 2> aspectRatio = {1600, 900}; // Width, height
+const std::array<int, 2> aspectRatio = {(int)(1600), (int)(900)}; // Width, height
 
 const double clusterFactor = 1; // Increases motivation to form clusters
 
@@ -15,12 +15,13 @@ const double repelRange = .013 * clusterFactor;
 const double interactForce = 50;
 const double repelForce = 5;
 
-const double programSpeed = .1;
+const double timeMultiplier = 10;
+double timeSpeed = .1;
 
 const double radius = .01;
 
 const int count = 1000;
-unsigned int variety = 2; // Total number of different particle types to use; not marked as const as it is changed if too large in main()
+unsigned int variety = 3; // Total number of different particle types to use; not marked as const as it is changed if too large in main()
 
 const bool punishClusters = false;
 
@@ -280,7 +281,7 @@ int main()
     std::filesystem::path executablePath = std::filesystem::canonical("/proc/self/exe", error);
 
     projectRoot = executablePath.parent_path();
-    
+
     if(projectRoot.filename() == "build")
         projectRoot = projectRoot.parent_path();
 
@@ -327,18 +328,20 @@ int main()
     #pragma endregion
 
     #pragma region UI
+
     // Panel creation
     UI::Panel panel{side, length, {1, 1, 1, .5f}};
     auto &world = panel.GetWorld();
 
-    // TEXT STUFF
-    std::array<float, 2> position = {-1, 0};
-    UI::element text = panel.AddTextElement(20, 0, position, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", false, "", false);
-
     UI::element grid = panel.AddGrid(0, .5, .4, variety, &interactions, true, aspect);
+    UI::element text = panel.AddTextElement(20, 100, {-.99, .95}, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", true, "Time Scale: ", false);
+    UI::element slider = panel.AddSlider(0, .947f, .2f, .04f, timeSpeed);
+    UI::element deleteButton = panel.AddButton(0, 0, .2, .05, {.7, .7, .7, .9}, "Delete");
+
+    panel.LinkElements(text, slider);
 
     // Initialize everything
-    panel.Init(uiShader, window);
+    panel.Init(uiShader, textShader, window);
 
     #pragma endregion
 
@@ -358,12 +361,16 @@ int main()
     /* Main Loop */
     while (!glfwWindowShouldClose(window))
     {
+        // Get current time multiplier
+        timeSpeed = panel.GetSliderValue(slider);
+
+        // Get current time
         currentTime = std::chrono::steady_clock::now();
 
         // Calculates time distance between current and previous frame
         std::chrono::duration<float> elapsed = currentTime - lastTime;
         float deltaTime = elapsed.count();
-        float simDelta = deltaTime * programSpeed; // scale the simulation timestep by user speed
+        float simDelta = deltaTime * timeMultiplier * timeSpeed; // scale the simulation timestep by user speed
 
         lastTime = currentTime;
 
@@ -443,7 +450,7 @@ int main()
         world.DisplaySelection(uiShader);
         world.DisplayAreaSelection(uiShader);
 
-        panel.Update(uiShader, window);
+        panel.Update(uiShader, textShader, window);
 
         // Clears user events buffer
         glfwPollEvents();

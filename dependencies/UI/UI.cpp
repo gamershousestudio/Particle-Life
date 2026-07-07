@@ -70,6 +70,10 @@ namespace UI
         glUseProgram(shader);
         glBindVertexArray(vao);
 
+        // Draw with corners
+        glUniform1i(glGetUniformLocation(shader, "u_Shape"), 0);
+        glUniform1f(glGetUniformLocation(shader, "u_CornerRadius"), 0.0f);
+
         // Binds shader variables
         glUniform2f(posLoc, (x0+x1)/2, (y0+y1)/2);
         glUniform2f(scaleLoc, fabs(x1-x0), fabs(y1-y0));
@@ -116,6 +120,10 @@ namespace UI
             const float boxSize = markerRadius * 2.0f;
             const float boxWidth = aspect > 0.0f ? boxSize / aspect : boxSize;
 
+            // Draw radial borders
+            glUniform1i(glGetUniformLocation(shader, "u_Shape"), 0);
+            glUniform1f(glGetUniformLocation(shader, "u_CornerRadius"), 0.0f);
+
             // Bind stuff to draw
             glUniform2f(posLoc, position[0], position[1]);
             glUniform2f(scaleLoc, boxWidth, boxSize);
@@ -157,6 +165,9 @@ namespace UI
         const double height = std::max(0.001, maxY - minY);
         const double centerX = (minX + maxX) * 0.5;
         const double centerY = (minY + maxY) * 0.5;
+
+        glUniform1i(glGetUniformLocation(shader, "u_Shape"), 0);
+        glUniform1f(glGetUniformLocation(shader, "u_CornerRadius"), 0.0f);
 
         // Bind uniforms
         glUniform2f(posLoc, static_cast<float>(centerX), static_cast<float>(centerY));
@@ -235,9 +246,117 @@ namespace UI
         return assignedId;
     }
 
+    /* Slider Creation */
+    // Creates a new slider under the panel
+    element Panel::AddSlider(float xOffset, float yCenter, float length, float totalHeight, float defaultValue)
+    {
+        // Create new slider
+        Slider slider(xOffset, yCenter, length, totalHeight, defaultValue);
+
+        // Update it's panel center
+        if(side == -1)
+            slider.panelCenter = -1 + this->length / 2.0f;
+        else
+            slider.panelCenter = 1 - this->length / 2.0f;
+
+            // Tell it to calculate where it should be
+        slider.RecalculatePosition();
+
+        // Add to elements
+        elements.push_back(ElementHandle{std::make_unique<Slider>(std::move(slider)), element{nextId}, true});
+
+        // Update Ids
+        element assignedId = elements.back().id;
+        nextId++;
+
+        if(nextId == 0)
+            std::cout << "ERROR: To many elements have been created under panel!" << std::endl;
+
+        return assignedId;
+    }
+
+    /* Button Creation */
+    // Creates a new button under the panel
+    element Panel::AddButton(float xOffset, float yCenter, float width, float height, std::array<float, 4> color, std::string text, std::string font, int fontSize, bool autoShrink)
+    {
+        // Create new button
+        Button button(xOffset, yCenter, width, height, color, text, font, fontSize, autoShrink);
+
+        // Update it's panel center
+        if(side == -1)
+            button.panelCenter = -1 + this->length / 2.0f;
+        else
+            button.panelCenter = 1 - this->length / 2.0f;
+
+        // Tell it to calculate where it should be
+        button.RecalculatePosition();
+
+        // Add to elements
+        elements.push_back(ElementHandle{std::make_unique<Button>(std::move(button)), element{nextId}, true});
+
+        // Update Ids
+        element assignedId = elements.back().id;
+        nextId++;
+
+        if(nextId == 0)
+            std::cout << "ERROR: To many elements have been created under panel!" << std::endl;
+
+        return assignedId;
+    }
+
+    /* Link Elements */
+    // Link two elements so they move and scale together anchored on their median
+    void Panel::LinkElements(element first, element second)
+    {
+        // Saves a lambda expression for finding values by id
+        auto findIndex = [&](element id) -> int {
+            for (int i = 0; i < static_cast<int>(elements.size()); ++i)
+            {
+                if (elements[i].id == id)
+                    return i;
+            }
+            return -1;
+        };
+
+        // Finds elements by id
+        int firstIndex = findIndex(first);
+        int secondIndex = findIndex(second);
+
+        // Makes sure values aren't invalid
+        if (firstIndex < 0 || secondIndex < 0 || firstIndex == secondIndex)
+            return;
+
+        // Get pointers to each element
+        Element *firstPtr = elements[firstIndex].ptr.get();
+        Element *secondPtr = elements[secondIndex].ptr.get();
+
+        // Get the center of each element
+        auto getElementCenter = [&](Element *elem) -> float
+        {
+            // If it is text, use it's center instead of manually calculating it
+            if (auto *textArea = dynamic_cast<TextArea*>(elem))
+                return textArea->center[0];
+            return (elem->pos[0] + elem->pos[2]) * 0.5f;
+        };
+
+        // Calculate the current centers of the two objects together and the center of the panel
+        float firstCenter = getElementCenter(firstPtr);
+        float secondCenter = getElementCenter(secondPtr);
+        float median = (firstCenter + secondCenter) * 0.5f;
+        float panelCenter = (side == -1) ? -1.0f + length / 2.0f : 1.0f - length / 2.0f;
+
+        // Calculate the relative center of the objects
+        const float firstOffset = firstCenter - median;
+        const float secondOffset = secondCenter - median;
+        const float medianOffsetFromPanelCenter = median - panelCenter;
+
+        // Save element pair
+        linkedGroups.push_back(LinkedGroup{first, second, medianOffsetFromPanelCenter, firstOffset, secondOffset});
+    }
+
     /* Panel Graphics Initialization */
     // Loads all necessary info to draw panel and elements
-    void Panel::Init(GLuint shader, GLFWwindow *window)
+    void Panel::Init(GLuint uiShader, GLuint textShader, GLFWwindow *window)
     {
         // Create and bind a valid VAO before setting up vertex attributes
         glGenVertexArrays(1, &vao);
@@ -271,12 +390,12 @@ namespace UI
         glEnableVertexAttribArray(0);
 
         // Where each variable is located in the shader so they can be set
-        glUseProgram(shader);
+        glUseProgram(uiShader);
         glBindVertexArray(vao);
 
-        posLoc = glGetUniformLocation(shader, "u_Position");
-        scaleLoc = glGetUniformLocation(shader, "u_Scale");
-        colorLoc = glGetUniformLocation(shader, "desiredColor");
+        posLoc = glGetUniformLocation(uiShader, "u_Position");
+        scaleLoc = glGetUniformLocation(uiShader, "u_Scale");
+        colorLoc = glGetUniformLocation(uiShader, "desiredColor");
 
         // Unbinds intermediates
         glBindVertexArray(0);
@@ -304,8 +423,18 @@ namespace UI
         {
             // Makes sure element is supposed to be initialized
             if (e.active)
-                // Runs element's Init() function (actual Element class's is overriden)
-                e.ptr->Init(shader); // Runs element's init function
+            {
+                // Assign shader to each element based on it's type -> what kind it needs
+                if (auto *textArea = dynamic_cast<TextArea*>(e.ptr.get()))
+                    e.ptr->Init(textShader);
+                else if (auto *button = dynamic_cast<Button*>(e.ptr.get()))
+                {
+                    button->textShader = textShader;
+                    button->Init(uiShader);
+                }
+                else
+                    e.ptr->Init(uiShader);
+            }
         }
 
         resizeHorizontalCursor = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
@@ -321,10 +450,10 @@ namespace UI
 
     /* Panel Drawing */
     // Draws panel on screen via OpenGL
-    void Panel::Draw(GLuint shader)
+    void Panel::Draw(GLuint uiShader, GLuint textShader)
     {
         // What shader and vertex array OpenGL should use to render
-        glUseProgram(shader);
+        glUseProgram(uiShader);
         glBindVertexArray(vao);
 
 
@@ -356,6 +485,9 @@ namespace UI
         glEnable(GL_SCISSOR_TEST);
         glScissor(scissorX, viewport[1], scissorWidth, viewport[3]);
 
+        glUniform1i(glGetUniformLocation(uiShader, "u_Shape"), 0);
+        glUniform1f(glGetUniformLocation(uiShader, "u_CornerRadius"), 0.0f);
+
         // Binds shader variables
         glUniform2f(posLoc, (side + side*(1-length))/2, 0);
         glUniform2f(scaleLoc, fabs(side*(1-length)-side), 2);
@@ -369,8 +501,14 @@ namespace UI
         {
             // Makes sure element is supposed to be drawn
             if (e.active)
+            {
                 // Runs element's Draw() function (actual Element class's is overriden)
-                e.ptr->Draw(shader); // Runs element's draw function
+                // Check element's type -> use the right shader
+                if(auto *textArea = dynamic_cast<TextArea*>(e.ptr.get()))
+                    e.ptr->Draw(textShader); // Runs element's draw function
+                else
+                    e.ptr->Draw(uiShader);
+            }
         }
 
         // Re-disables scissor mode after everything is rendered
@@ -618,6 +756,68 @@ namespace UI
                 grid->panelCenter = clampedCenter - grid->xOffset;
                 grid->RecalculateSquares();
             }
+            //  If element is slider, update slider
+            else if (auto *slider = dynamic_cast<Slider*>(element.ptr.get()))
+            {
+                // Value calculation
+                const float desiredCenter = (side == -1 ? -1.0f + length / 2.0f : 1.0f - length / 2.0f) + slider->xOffset;
+                const float halfWidth = slider->length * 0.5f;
+                const float minCenter = panelStart + halfWidth;
+                const float maxCenter = panelEnd - halfWidth;
+                const float clampedCenter = std::max(minCenter, std::min(maxCenter, desiredCenter));
+
+                // Update center
+                slider->panelCenter = clampedCenter - slider->xOffset;
+
+                // Recalculate slider positioning
+                slider->RecalculatePosition();
+            }
+            // If element is a button, update using its panel-relative center and width
+            else if (auto *button = dynamic_cast<Button*>(element.ptr.get()))
+            {
+                // Calculate where it's center should be
+                const float desiredCenter = (side == -1 ? -1.0f + length / 2.0f : 1.0f - length / 2.0f) + button->xOffset;
+                const float halfWidth = button->width * 0.5f;
+                const float minCenter = panelStart + halfWidth;
+                const float maxCenter = panelEnd - halfWidth;
+                const float clampedCenter = std::max(minCenter, std::min(maxCenter, desiredCenter));
+
+                // Update it's center
+                button->panelCenter = clampedCenter - button->xOffset;
+                button->RecalculatePosition();
+            }
+            // If element is a text area, update its center now that pos has moved
+            else if (auto *textArea = dynamic_cast<TextArea*>(element.ptr.get()))
+            {
+                textArea->RecalculatePosition();
+                const float width = element.ptr->pos[2] - element.ptr->pos[0];
+
+                // Left panel case
+                if (side == -1)
+                {
+                    // Prevents panel moving past right edge
+                    const float clampedX1 = std::min(panelEnd, element.ptr->pos[2] + xDelta);
+
+                    // Updates its position
+                    element.ptr->pos[0] = clampedX1 - width;
+                    element.ptr->pos[2] = clampedX1;
+                }
+                // Right panel case
+                else
+                {
+                    // Prevents panel moving past left edge
+                    const float clampedX0 = std::max(panelStart, element.ptr->pos[0] + xDelta);
+
+                    // Updates its position
+                    element.ptr->pos[0] = clampedX0;
+                    element.ptr->pos[2] = clampedX0 + width;
+                }
+
+                // Update it's center
+                textArea->center = {(element.ptr->pos[0] + element.ptr->pos[2]) * 0.5f,
+                                    (element.ptr->pos[1] + element.ptr->pos[3]) * 0.5f};
+                textArea->RecalculatePosition();
+            }
             // If element is anything else, change its x position based on the panel's position changes
             else
             {
@@ -646,15 +846,76 @@ namespace UI
                 }
             }
         }
+
+        // Move linked groups together around their shared median
+        const float newPanelCenter = (side == -1) ? -1.0f + length / 2.0f : 1.0f - length / 2.0f;
+
+        for (auto &group : linkedGroups)
+        {
+            const float median = newPanelCenter + group.medianOffsetFromPanelCenter;
+
+            for (const auto &pair : {std::pair<element, float>{group.first, group.firstOffsetFromMedian}, std::pair<element, float>{group.second, group.secondOffsetFromMedian}})
+            {
+                int index = -1;
+                for (int i = 0; i < static_cast<int>(elements.size()); ++i)
+                {
+                    if (elements[i].id == pair.first)
+                    {
+                        index = i;
+                        break;
+                    }
+                }
+
+                if (index < 0)
+                    continue;
+
+                Element *linkedElement = elements[index].ptr.get();
+                float width = linkedElement->pos[2] - linkedElement->pos[0];
+                float center = median + pair.second;
+                float left = center - width / 2.0f;
+                float right = center + width / 2.0f;
+
+                linkedElement->pos[0] = left;
+                linkedElement->pos[2] = right;
+
+                if (auto *grid = dynamic_cast<Grid*>(linkedElement))
+                {
+                    grid->panelCenter = center - grid->xOffset;
+                    grid->RecalculateSquares();
+                }
+                else if (auto *slider = dynamic_cast<Slider*>(linkedElement))
+                {
+                    slider->panelCenter = center - slider->xOffset;
+                    slider->RecalculatePosition();
+                }
+                else if (auto *textArea = dynamic_cast<TextArea*>(linkedElement))
+                {
+                    textArea->center = {center, (textArea->pos[1] + textArea->pos[3]) * 0.5f};
+                    textArea->RecalculatePosition();
+                }
+                else if (auto *textArea = dynamic_cast<TextArea*>(linkedElement))
+                {
+                    textArea->center = {center,
+                                        (textArea->pos[1] + textArea->pos[3]) * 0.5f};
+                    textArea->RecalculatePosition();
+                }
+            }
+        }
     }
 
     /* Panel Update Function */
     // Updates everything related to the panel
-    void Panel::Update(GLuint shader, GLFWwindow *window)
+    void Panel::Update(GLuint uiShader, GLuint textShader, GLFWwindow *window)
     {
         UpdateCursor(window);
+ 
+        for (auto &e : elements)
+        {
+            if (e.active)
+                e.ptr->HandleInput(window);
+        }
 
-        // If right mouse is down and didnt start on panel -> do right mouse drag
+        // If right mouse is down and didn't start on panel -> do right mouse drag
         if (Events::rightMouseDown && !Events::rightMouseDownStartedOnPanel)
         {
             // Get cursor position
@@ -673,7 +934,7 @@ namespace UI
             Events::rightSelectionCurrentPos = {cursorX, cursorY};
         }
 
-        Draw(shader);
+        Draw(uiShader, textShader);
 
         // If dragging is occuring outside of the panel, call the world's drag function
 
@@ -693,7 +954,7 @@ namespace UI
 
         if(!((side == -1 && x < (-1+length)) || (side == 1 && x > (1-length)))) // Only continue if scroll area was within the panel.length
             if(Events::leftMouseDown && !Events::leftMouseDownStartedOnPanel && !Events::draggingPanel)
-                world.LeftDrag(window, shader);
+                world.LeftDrag(window, uiShader);
         
         // Should panel be resized
         if(Events::leftMouseDown && Events::draggingPanel)
@@ -714,6 +975,25 @@ namespace UI
 
             // Recalculate the positions of all entities for the new panel
             RecalculateElementPositions(oldLength);
+        }
+    }
+
+    /* Slider Value Retrieving */
+    // Called by user; finds given slider and return's its normalized value
+    float Panel::GetSliderValue(element slider)
+    {
+        // Loop through each element attached to panel
+        for(int i = 0; i < elements.size(); i++)
+        {
+            // Check if element is right one
+            if(elements[i].id == slider.id)
+            {
+                // Ensure element is a slider
+                if(auto *sliderPtr = dynamic_cast<Slider*>(elements[i].ptr.get()))
+                    return sliderPtr->normalizedValue;
+                else
+                    return -1;
+            }
         }
     }
 
@@ -838,11 +1118,16 @@ namespace UI
         }
     }
 
+    /* Grid Drawing */
+    // Draws every square in the grid and colors them based on their values
     void Grid::Draw(GLuint shader)
     {
         // What shader and vertex array OpenGL should use to render
         glUseProgram(shader);
         glBindVertexArray(vao);
+
+        glUniform1i(glGetUniformLocation(shader, "u_Shape"), 0);
+        glUniform1f(glGetUniformLocation(shader, "u_CornerRadius"), 0.0f);
 
         // Loops through each rectangle in given rectangles
         for (const Square& s : boxes)
@@ -939,6 +1224,7 @@ namespace UI
     /* Full Text Area Constructor */
     // Creates a text area with all needed information
     TextArea::TextArea(float fontSize, unsigned int charactersPerLine, std::array<float, 2> center, std::string font, bool autoShrink, std::string text, bool startAtCenter):
+        Element({0.0f, 0.0f, 0.0f, 0.0f}),
         fontSize(fontSize), maxCharactersPerLine(charactersPerLine), center(center), font(font), autoShrink(autoShrink), text(text), face(NULL), startDrawingTextAtCenter(startAtCenter) {}
 
     /* Set Text Displayed */
@@ -982,7 +1268,7 @@ namespace UI
 
         // Initialization of font
         error = FT_New_Face( library, // Library to be initialized under; FT_New_Face() initializes a new font("face")
-                     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", // Path to font
+                     font.c_str(), // Path to font
                      0, // What face to load
                      &face ); // What face to set it to
 
@@ -1064,8 +1350,11 @@ namespace UI
     void TextArea::Init(GLuint shader)
     {
         LoadFont();
+        RecalculatePosition();
 
-        glm::mat4 projection = glm::ortho(0.0f, 1600.0f, 0.0f, 900.0f);
+        int viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(viewport[2]), 0.0f, static_cast<float>(viewport[3]));
 
         glUseProgram(shader);
         glUniformMatrix4fv(
@@ -1077,7 +1366,7 @@ namespace UI
 
         // Allows for colors to render properly
         glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         // Generates vertex array/object buffer
         glGenVertexArrays(1, &vao);
@@ -1094,7 +1383,38 @@ namespace UI
 
         // Unbinds intermediates
         glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);      
+        glBindVertexArray(0);
+    }
+
+    /* Position Recalculation */
+    // Updates the Element position for the TextArea based on panel position and positions assigned to it
+    void TextArea::RecalculatePosition()
+    {
+        // How big text field is
+        float width = 0.0f;
+        for (char c : text)
+        {
+            Character ch = Characters[c];
+            width += (ch.advance >> 6);
+        }
+
+        // How tall text field is
+        float height = static_cast<float>(fontSize);
+
+        // Get aspect ratio from viewport
+        int viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        const float viewportWidth = static_cast<float>(viewport[2]);
+        const float viewportHeight = static_cast<float>(viewport[3]);
+
+        // Calculate center
+        float x0 = center[0] - (startDrawingTextAtCenter ? (width * 0.5f) / viewportWidth * 2.0f : 0.0f);
+        float x1 = center[0] + (width * 0.5f) / viewportWidth * 2.0f;
+        float y0 = center[1] - (height * 0.5f) / viewportHeight * 2.0f;
+        float y1 = center[1] + (height * 0.5f) / viewportHeight * 2.0f;
+
+        // Update Element center
+        pos = {x0, y0, x1, y1};
     }
 
     /* Text Drawing */
@@ -1110,24 +1430,34 @@ namespace UI
 
         // Computation of length of text(so we can find center)
         float width = 0.0f;
+        float ascent = 0.0f;
+        float descent = 0.0f;
+
         for (char c : text)
         {
             Character ch = Characters[c];
             width += (ch.advance >> 6);
+            ascent = std::max(ascent, static_cast<float>(ch.bearing.y));
+            descent = std::max(descent, static_cast<float>(ch.size.y - ch.bearing.y));
         }
 
         // Converts normalized device coords [-1,1] into screen pixels (so units are constant, as all other elements use normalized values)
-        float screenX = (center[0] + 1.0f) * 0.5f * 1600.0f;
-        float screenY = (center[1] + 1.0f) * 0.5f * 900.0f;
+        int viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        const float viewportWidth = static_cast<float>(viewport[2]);
+        const float viewportHeight = static_cast<float>(viewport[3]);
+
+        float screenX = (center[0] + 1.0f) * 0.5f * viewportWidth;
+        float screenY = (center[1] + 1.0f) * 0.5f * viewportHeight;
 
         // Center text (if needed)
         float x;
-        if(startDrawingTextAtCenter)
+        if (startDrawingTextAtCenter)
             x = screenX - width * 0.5f;
         else
-            x =  center[0];
+            x = screenX;
 
-        float y = screenY;
+        float y = screenY - (ascent - descent) * 0.5f;
 
         // Goes through each character in the text
         std::string::const_iterator c;
@@ -1153,7 +1483,7 @@ namespace UI
 
                 { xpos,     ypos + h,   0.0f, 0.0f },
                 { xpos + w, ypos,       1.0f, 1.0f },
-                { xpos + w, ypos + h,   1.0f, 0.0f }           
+                { xpos + w, ypos + h,   1.0f, 0.0f }
             };
 
             // Renders glyph texture over quad
@@ -1161,7 +1491,7 @@ namespace UI
 
             // Updates content of VBO memory
             glBindBuffer(GL_ARRAY_BUFFER, vbo);
-            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices); 
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
 
             // Renders actual quad
@@ -1175,7 +1505,14 @@ namespace UI
         glBindVertexArray(0);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
-        
+
+    /* Update Center */
+    // Updates the text rendering center position
+    void TextArea::SetCenter(std::array<float, 2> center)
+    {
+        this->center = center;
+        RecalculatePosition();
+    }
 
     #pragma endregion
 
@@ -1184,10 +1521,313 @@ namespace UI
 
     /* Default Slider Constructor */
     // Just creates a slider, nothin special about it...
-    Slider::Slider() {}
+    Slider::Slider(): normalizedValue(0.5f), isDragging(false), length(0.0f), height(0.0f), xOffset(0.0f), yCenter(0.0f), panelCenter(0.0f) {}
 
     Slider::Slider(float xOffset, float yCenter, float length, float totalHeight, float defaultValue):
-        
+        xOffset(xOffset), yCenter(yCenter), length(length), height(totalHeight), normalizedValue(std::clamp(defaultValue, 0.0f, 1.0f)), isDragging(false), panelCenter(0.0f) {}
+
+    /* Recenter Slider */
+    // Recalculate the stored center of the slider
+    void Slider::RecalculatePosition()
+    {
+        const float x0 = panelCenter + xOffset - length / 2.0f;
+        const float x1 = panelCenter + xOffset + length / 2.0f;
+        const float y0 = yCenter - height / 2.0f;
+        const float y1 = yCenter + height / 2.0f;
+
+        this->pos = {x0, y0, x1, y1};
+    }
+
+
+    /* Slider Drawing Initialization */
+    // Prepare buffers for slider to be drawn
+    void Slider::Init(GLuint shader)
+    {
+        // Start by calculating the center
+        RecalculatePosition();
+
+        // Bind buffers
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
+
+        // Prepare buffers for drawing
+        glGenBuffers(1, &vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(float), vertices, GL_STATIC_DRAW);
+
+        // Point to what is needed where
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, 0);
+
+        // Prepare buffers for drawing
+        glGenBuffers(1, &ebo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices, GL_STATIC_DRAW);
+
+        // Unbind intermediates
+        glEnableVertexAttribArray(0);
+
+        // Find location of needed inputs
+        glUseProgram(shader);
+        glBindVertexArray(vao);
+
+        posLoc = glGetUniformLocation(shader, "u_Position");
+        scaleLoc = glGetUniformLocation(shader, "u_Scale");
+        colorLoc = glGetUniformLocation(shader, "desiredColor");
+        shapeLoc = glGetUniformLocation(shader, "u_Shape");
+        radiusLoc = glGetUniformLocation(shader, "u_CornerRadius");
+
+        if (posLoc == -1 || scaleLoc == -1 || colorLoc == -1)
+            std::cout << "Warning: slider shader uniform not found." << std::endl;
+
+        // Unbind intermediates
+        glBindVertexArray(0);
+    }
+
+    /* Slider Drawing */
+    // Draws the slider base and handle based on current normalized value
+    void Slider::Draw(GLuint shader)
+    {
+        // Bind the slider's shader and vertex data
+        glUseProgram(shader);
+        glBindVertexArray(vao);
+
+        // Get viewport dimensions to keep the slider shape correct on different aspect ratios
+        int viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        const float aspect = static_cast<float>(viewport[2]) / std::max(1, viewport[3]);
+
+        // Calculate the slider's track and handle sizes
+        const float barRadius = std::min(height * 0.5f, 0.02f);
+        const float knobRadius = std::min(height * 0.6f, std::max(0.01f, (pos[2] - pos[0]) * 0.5f));
+        const float trackWidth = std::max(0.0f, pos[2] - pos[0]);
+        const float effectiveMinX = pos[0] + knobRadius;
+        const float effectiveMaxX = pos[2] - knobRadius;
+        const float knobCenterX = std::clamp(pos[0] + trackWidth * normalizedValue, effectiveMinX, effectiveMaxX);
+        const float knobCenterY = (pos[1] + pos[3]) * 0.5f;
+
+        // Draw the rounded track of the slider
+        glUniform1i(shapeLoc, 1);
+        glUniform1f(radiusLoc, barRadius);
+        glUniform1f(glGetUniformLocation(shader, "u_Aspect"), aspect);
+        glUniform2f(posLoc, (pos[0] + pos[2]) * 0.5f, (pos[1] + pos[3]) * 0.5f);
+        glUniform2f(scaleLoc, pos[2] - pos[0], pos[3] - pos[1]);
+        glUniform4f(colorLoc, 0.22f, 0.24f, 0.28f, 1.0f);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+
+        // Draw the handle at the current normalized value as a rectangle
+        glUniform1i(shapeLoc, 0);
+        glUniform1f(radiusLoc, 0.0f);
+        glUniform1f(glGetUniformLocation(shader, "u_Aspect"), aspect);
+        glUniform2f(posLoc, knobCenterX, knobCenterY);
+        glUniform2f(scaleLoc, knobRadius, knobRadius);
+        glUniform4f(colorLoc, 0.92f, 0.92f, 0.92f, 1.0f);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+
+        // Unbind intermediates
+        glBindVertexArray(0);
+    }
+
+    /* Input Response */
+    // Updates visual and value based on new position, decided from mouse position
+    void Slider::HandleInput(GLFWwindow *window)
+    {
+        // Get cursor position
+        double cursorX, cursorY;
+        glfwGetCursorPos(window, &cursorX, &cursorY);
+
+        // Get window aspect
+        int windowWidth, windowHeight;
+        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+
+        // Recalculate position to account for window aspect ratio
+        const float x = static_cast<float>((cursorX / windowWidth) * 2.0 - 1.0);
+        const float y = static_cast<float>(-((cursorY / windowHeight) * 2.0 - 1.0));
+
+        // See if cursor is within range
+        const bool hovered = (x >= pos[0] && x <= pos[2] && y >= pos[1] && y <= pos[3]);
+
+        // Left mouse is down
+        if (Events::leftMouseDown)
+        {
+            // Update dragging if it hasn't been already
+            if (!isDragging && hovered)
+                isDragging = true;
+
+            if (isDragging)
+            {
+                // Calculate and update knob positioning
+                const float trackWidth = std::max(0.0f, pos[2] - pos[0]);
+                const float knobRadius = std::min(height * 0.6f, std::max(0.01f, trackWidth * 0.5f));
+                const float effectiveMinX = pos[0] + knobRadius;
+                const float effectiveMaxX = pos[2] - knobRadius;
+                const float clampedX = std::clamp(x, effectiveMinX, effectiveMaxX);
+                const float availableWidth = std::max(1e-4f, trackWidth - (knobRadius * 2.0f));
+                normalizedValue = (clampedX - pos[0] - knobRadius) / availableWidth;
+                normalizedValue = std::clamp(normalizedValue, 0.0f, 1.0f);
+            }
+        }
+        else
+            isDragging = false;
+    }
+
+    #pragma endregion
+
+    // Button class functions
+    # pragma region Button
+
+    /* Default Button Constructor */
+    // Initializes everything necessary for a button
+    Button::Button():
+        pressed(false), candidate(false), width(0.0f), height(0.0f), xOffset(0.0f), yCenter(0.0f), panelCenter(0.0f), Element() {}
+
+    /* Full Button Constructor */
+    // Creates a new button with all the information needed to draw it
+    Button::Button(float xOffset, float yCenter, float width, float height, std::array<float, 4> color, std::string text, std::string font, int fontSize, bool autoShrink):
+        pressed(false), candidate(false), width(width), height(height), xOffset(xOffset), yCenter(yCenter), panelCenter(0.0f), Element(std::array<float, 4>{0, 0, 0, 0}, color),
+        textShader(0), textOverlay(nullptr), textFont(std::move(font)), textFontSize(fontSize), textAutoShrink(autoShrink)
+    {
+        this->color = color;
+        if (!text.empty())
+            textOverlay = std::make_unique<TextArea>(fontSize, 100, std::array<float, 2>{0.0f, 0.0f}, textFont, autoShrink, text, true);
+    }
+
+    /* Button Initialization */
+    // Initializes shaders for the button to render, also initializes text and calculates position
+    void Button::Init(GLuint shader)
+    {
+        if (vao == 0)
+            glGenVertexArrays(1, &vao);
+        if (vbo == 0)
+            glGenBuffers(1, &vbo);
+        if (ebo == 0)
+            glGenBuffers(1, &ebo);
+
+        glBindVertexArray(vao);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(float), vertices, GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, 0);
+        glEnableVertexAttribArray(0);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices, GL_STATIC_DRAW);
+
+        glUseProgram(shader);
+        glBindVertexArray(vao);
+        posLoc = glGetUniformLocation(shader, "u_Position");
+        scaleLoc = glGetUniformLocation(shader, "u_Scale");
+        colorLoc = glGetUniformLocation(shader, "desiredColor");
+        shapeLoc = glGetUniformLocation(shader, "u_Shape");
+        radiusLoc = glGetUniformLocation(shader, "u_CornerRadius");
+        glBindVertexArray(0);
+
+        if (textOverlay)
+        {
+            RecalculatePosition();
+            InitTextOverlay(textShader ? textShader : shader);
+        }
+        else
+        {
+            RecalculatePosition();
+        }
+    }
+
+    /* Initialize Drawing For Text */
+    // Initialize text with it's shader and position
+    void Button::InitTextOverlay(GLuint shader)
+    {
+        if (!textOverlay)
+            return;
+
+        textShader = shader;
+        textOverlay->SetCenter({(pos[0] + pos[2]) * 0.5f, (pos[1] + pos[3]) * 0.5f});
+        textOverlay->RecalculatePosition();
+        textOverlay->Init(shader);
+    }
+
+    /* Button Drawing */
+    // Draws button and text from position
+    void Button::Draw(GLuint shader)
+    {
+        glUseProgram(shader);
+        glBindVertexArray(vao);
+
+        int viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        const float aspect = static_cast<float>(viewport[2]) / std::max(1, viewport[3]);
+
+        glUniform1i(shapeLoc, 1);
+        glUniform1f(radiusLoc, std::min(width, height) * 0.18f);
+        glUniform1f(glGetUniformLocation(shader, "u_Aspect"), aspect);
+        glUniform2f(posLoc, (pos[0] + pos[2]) * 0.5f, (pos[1] + pos[3]) * 0.5f);
+        glUniform2f(scaleLoc, pos[2] - pos[0], pos[3] - pos[1]);
+
+        if (candidate)
+            glUniform4f(colorLoc, color[0] * 0.8f, color[1] * 0.8f, color[2] * 0.8f, color[3]);
+        else
+            glUniform4f(colorLoc, color[0], color[1], color[2], color[3]);
+
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+        glBindVertexArray(0);
+
+        if (textOverlay)
+        {
+            textOverlay->SetCenter({(pos[0] + pos[2]) * 0.5f, (pos[1] + pos[3]) * 0.5f});
+            textOverlay->RecalculatePosition();
+            textOverlay->Draw(textShader ? textShader : shader);
+        }
+    }
+
+    /* Button OnClick */
+    // Called when button is clicked: updates Events struct
+    void Button::HandleInput(GLFWwindow *window)
+    {
+        double cursorX, cursorY;
+        glfwGetCursorPos(window, &cursorX, &cursorY);
+
+        int windowWidth, windowHeight;
+        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+
+        const float x = static_cast<float>((cursorX / windowWidth) * 2.0 - 1.0);
+        const float y = static_cast<float>(-((cursorY / windowHeight) * 2.0 - 1.0));
+
+        const bool hovered = (x >= pos[0] && x <= pos[2] && y >= pos[1] && y <= pos[3]);
+
+        if (hovered && Events::leftMouseDown)
+            candidate = true;
+        else if (!Events::leftMouseDown)
+            candidate = false;
+
+        if (!Events::leftMouseDown && hovered && !pressed)
+            pressed = true;
+    }
+
+    /* Button Text Update */
+    // Called by user to update button's text
+    void Button::SetText(const std::string &text)
+    {
+        if (!textOverlay)
+        {
+            textOverlay = std::make_unique<TextArea>(textFontSize, 100, std::array<float, 2>{0.0f, 0.0f}, textFont, textAutoShrink, text, true);
+            if (textShader != 0)
+                InitTextOverlay(textShader);
+        }
+        else
+        {
+            textOverlay->SetText(text);
+        }
+    }
+
+    /* Button Position Calculation */
+    // Recalculates the global position of the button from the relative position
+    void Button::RecalculatePosition()
+    {
+        const float x0 = panelCenter + xOffset - width / 2.0f;
+        const float x1 = panelCenter + xOffset + width / 2.0f;
+        const float y0 = yCenter - height / 2.0f;
+        const float y1 = yCenter + height / 2.0f;
+        pos = {x0, y0, x1, y1};
+    }
 
     #pragma endregion
 }

@@ -95,6 +95,7 @@ namespace UI
             virtual void Init(GLuint shader) {}
             virtual void Draw(GLuint shader) {}
             virtual void Scroll(GLFWwindow *window, double xOffset, double yOffset) {}
+            virtual void HandleInput(GLFWwindow *window) {}
 
             Element(std::array<float, 4> pos, std::array<float, 4> color);
             Element(std::array<float, 4> pos);
@@ -163,6 +164,17 @@ namespace UI
 
         void RecalculateElementPositions(float oldLength);
 
+        struct LinkedGroup
+        {
+            element first;
+            element second;
+            float medianOffsetFromPanelCenter;
+            float firstOffsetFromMedian;
+            float secondOffsetFromMedian;
+        };
+
+        std::vector<LinkedGroup> linkedGroups;
+
         unsigned int indices[6] = { // What indices from the positions to use to render each triangle (instead of buffering extra positions)
                 0, 1, 2,
                 2, 3, 0
@@ -174,7 +186,7 @@ namespace UI
                 0.5f,  0.5f,
                 -0.5f,  0.5f
             };
-        
+
         GLFWcursor *resizeHorizontalCursor;
 
         float edge; // Edge of panel as drawn
@@ -186,11 +198,13 @@ namespace UI
             Panel(); // Default constructor; defines empty panel
             Panel(int side, float length, std::array<float, 4> color); // Full constructor; defines panel with given size from given side of the screen and a given color
             void AddElement(Element element); // Adds new element to panel
-            void Init(GLuint shader, GLFWwindow *window); // Loads panel and all elements to be drawn
-            void Draw(GLuint shader); // Draws panel and  all attached elements
+            void Init(GLuint uiShader, GLuint textShader, GLFWwindow *window); // Loads panel and all elements to be drawn
+            void Draw(GLuint uiShader, GLuint textShader); // Draws panel and  all attached elements
             void UpdateCursor(GLFWwindow *window); // Updates the current displayed cursor
 
-            void Update(GLuint shader, GLFWwindow *window); // Panel update function; ran every frame
+            void Update(GLuint uiShader, GLuint textShader, GLFWwindow *window); // Panel update function; ran every frame
+
+            float GetSliderValue(element slider); // Gets the given slider's normalized value
 
             World& GetWorld() { return world; }
             const World& GetWorld() const { return world; }
@@ -199,7 +213,10 @@ namespace UI
 
             // Constructors for other elements
             element AddGrid(float xOffset, float yCenter, float length, unsigned int numberOfBoxes, std::vector<std::vector<float>> *values, bool useInputs, float aspect); // Create a grid
-            element AddTextElement(float fontSize, unsigned int charactersPerLine, std::array<float, 2> center, std::string font, bool autoShrink, std::string text="", bool startAtCenter=true); // Create a panel
+            element AddTextElement(float fontSize, unsigned int charactersPerLine, std::array<float, 2> center, std::string font, bool autoShrink, std::string text="", bool startAtCenter=true); // Create a text element
+            element AddSlider(float xOffset, float yCenter, float length, float totalHeight, float defaultValue); // Create a slider
+            element AddButton(float xOffset, float yCenter, float width, float height, std::array<float, 4> color, std::string text = "", std::string font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int fontSize = 18, bool autoShrink = true); // Create a button
+            void LinkElements(element first, element second); // Link two elements so they scale and move together
     };
 
     // Class: Grid
@@ -249,49 +266,100 @@ namespace UI
     // Class: Text Area (later add ability to change text)
     class TextArea : public Element
     {
-        // Private functions can only be accessed by Panel instances
+        // Private functions can only be accessed by Panel and Button instances
         friend class Panel;
+        friend class Button;
 
-        std::string text;
-        std::string font;
-        float fontSize;
+        public:
+            std::string text;
+            std::string font;
+            float fontSize;
 
-        int maxCharactersPerLine;
-        bool autoShrink; // Shrink font size once it reaches maxCharactersPerLine
+            int maxCharactersPerLine;
+            bool autoShrink; // Shrink font size once it reaches maxCharactersPerLine
 
-        std::map<char, Character> Characters; // List of variables that define each possible character
+            std::map<char, Character> Characters; // List of variables that define each possible character
 
-        std::array<float, 2> center;
-        std::array<float, 3> color = {1, 1, 1};
+            std::array<float, 2> center;
+            std::array<float, 3> color = {1, 1, 1};
 
-        FT_Library library; // Freetype library instance
-        FT_Face face; // Freetype font instance
+            FT_Library library; // Freetype library instance
+            FT_Face face; // Freetype font instance
 
-        bool startDrawingTextAtCenter; // If center should be the center of text or the leftmost portion/where drawing starts
+            bool startDrawingTextAtCenter; // If center should be the center of text or the leftmost portion/where drawing starts
 
-        TextArea(); // Default constructor; defines empty text area
-        TextArea(float fontSize, unsigned int charactersPerLine, std::array<float, 2> center, std::string font, bool autoShrink, std::string text, bool startAtCenter);
+            TextArea(); // Default constructor; defines empty text area
+            TextArea(float fontSize, unsigned int charactersPerLine, std::array<float, 2> center, std::string font, bool autoShrink, std::string text, bool startAtCenter);
 
-        void SetText(std::string text); // Change what the text says
-        std::string GetText(); // See the current text saved to this instance
-        void SetFontSize(int size); // Sets font height in pixels
-        void LoadFont(); // Loads a set of characters based in info such as font, size, etc.
-        void Init(GLuint shader) override; // Initializes text to be drawn along with other necessary freetype information
-        void Draw(GLuint shader) override; // Renders text
+            void SetText(std::string text); // Change what the text says
+            std::string GetText(); // See the current text saved to this instance
+            void SetFontSize(int size); // Sets font height in pixels
+            void SetCenter(std::array<float, 2> center); // Updates the text drawing center
+            void RecalculatePosition(); // Updates pos bounds from center and text size
+            void LoadFont(); // Loads a set of characters based in info such as font, size, etc.
+            void Init(GLuint shader) override; // Initializes text to be drawn along with other necessary freetype information
+            void Draw(GLuint shader) override; // Renders text
     };
 
-    // Class: Slider
+    // Class: Sliders
     class Slider : public Element
     {
+        friend class Panel;
+
         float normalizedValue;
+        bool isDragging;
 
         float length, height;
+        float xOffset, yCenter;
+        float panelCenter;
+
+        GLuint shapeLoc = -1;
+        GLuint radiusLoc = -1;
 
         Slider(); // Default constructor; defines empty slider
         Slider(float xOffset, float yCenter, float length, float totalHeight, float defaultValue); // Full constructor
 
-        void Init(GLuint shader) override; // Loads slider rect abd circle
+        void Init(GLuint shader) override; // Loads slider rect and circle
         void Draw(GLuint shader) override; // Draws slider on window
+        void HandleInput(GLFWwindow *window) override; // Updates the slider value from pointer input
+        void RecalculatePosition(); // Repositions the slider relative to the panel
+
+        float GetNormalizedValue() const { return normalizedValue; } // Return the normalized value of the slider
+    };
+
+    class Button : public Element
+    {
+        friend class Panel;
+
+        bool pressed;
+        bool candidate;
+        float width;
+        float height;
+        float xOffset;
+        float yCenter;
+        float panelCenter;
+
+        GLuint shapeLoc = -1;
+        GLuint radiusLoc = -1;
+        GLuint textShader = 0;
+        std::unique_ptr<TextArea> textOverlay;
+        std::string textFont;
+        int textFontSize;
+        bool textAutoShrink;
+
+        Button();
+        Button(float xOffset, float yCenter, float width, float height, std::array<float, 4> color, std::string text = "", std::string font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int fontSize = 18, bool autoShrink = true);
+
+        void Init(GLuint shader) override; // Loads necessary shader for drawing button
+        void Draw(GLuint shader) override; // Draws button and text
+        void HandleInput(GLFWwindow *window) override; // Updates if the button is currently being pressed
+        void InitTextOverlay(GLuint shader); // Adds text overlay
+        void RecalculatePosition(); // Updates position when panel moves
+
+        void SetText(const std::string &text); // Updates displayed text
+
+        bool IsPressed() const { return pressed; } // Returns if button is/isn't pressed
+        void ResetPressed() { pressed = false; } // Resets button state
     };
 }
 
