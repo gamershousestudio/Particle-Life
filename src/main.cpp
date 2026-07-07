@@ -5,7 +5,7 @@
 
 const char* programName = "Particle Life";
 
-const std::array<int, 2> aspectRatio = {(int)(1600), (int)(900)}; // Width, height
+const std::array<int, 2> aspectRatio = {(int)(1600*1), (int)(900*1)}; // Width, height
 
 const double clusterFactor = 1; // Increases motivation to form clusters
 
@@ -15,12 +15,12 @@ const double repelRange = .013 * clusterFactor;
 const double interactForce = 50;
 const double repelForce = 5;
 
-const double timeMultiplier = 10;
+const double timeMultiplier = 1;
 double timeSpeed = .1;
 
 const double radius = .01;
 
-const int count = 1000;
+const int count = 10000;
 unsigned int variety = 3; // Total number of different particle types to use; not marked as const as it is changed if too large in main()
 
 const bool punishClusters = false;
@@ -336,7 +336,7 @@ int main()
     UI::element grid = panel.AddGrid(0, .5, .4, variety, &interactions, true, aspect);
     UI::element text = panel.AddTextElement(20, 100, {-.99, .95}, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", true, "Time Scale: ", false);
     UI::element slider = panel.AddSlider(0, .947f, .2f, .04f, timeSpeed);
-    UI::element deleteButton = panel.AddButton(0, 0, .2, .05, {.7, .7, .7, .9}, "Delete");
+    UI::element deleteButton = panel.AddButton(0, 0, .2, .05, {.7, .7, .7, .9}, textShader, "Delete", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24);
 
     panel.LinkElements(text, slider);
 

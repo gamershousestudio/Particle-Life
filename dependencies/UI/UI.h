@@ -215,7 +215,7 @@ namespace UI
             element AddGrid(float xOffset, float yCenter, float length, unsigned int numberOfBoxes, std::vector<std::vector<float>> *values, bool useInputs, float aspect); // Create a grid
             element AddTextElement(float fontSize, unsigned int charactersPerLine, std::array<float, 2> center, std::string font, bool autoShrink, std::string text="", bool startAtCenter=true); // Create a text element
             element AddSlider(float xOffset, float yCenter, float length, float totalHeight, float defaultValue); // Create a slider
-            element AddButton(float xOffset, float yCenter, float width, float height, std::array<float, 4> color, std::string text = "", std::string font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int fontSize = 18, bool autoShrink = true); // Create a button
+            element AddButton(float xOffset, float yCenter, float width, float height, std::array<float, 4> color, GLuint textShader, std::string text = "", std::string font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int fontSize = 18, bool autoShrink = true); // Create a button
             void LinkElements(element first, element second); // Link two elements so they scale and move together
     };
 
@@ -346,9 +346,10 @@ namespace UI
         std::string textFont;
         int textFontSize;
         bool textAutoShrink;
+        std::string buttonText;
 
         Button();
-        Button(float xOffset, float yCenter, float width, float height, std::array<float, 4> color, std::string text = "", std::string font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int fontSize = 18, bool autoShrink = true);
+        Button(float xOffset, float yCenter, float width, float height, std::array<float, 4> color, GLuint textShader, std::string text = "", std::string font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int fontSize = 18, bool autoShrink = true);
 
         void Init(GLuint shader) override; // Loads necessary shader for drawing button
         void Draw(GLuint shader) override; // Draws button and text

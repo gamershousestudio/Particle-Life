@@ -277,10 +277,10 @@ namespace UI
 
     /* Button Creation */
     // Creates a new button under the panel
-    element Panel::AddButton(float xOffset, float yCenter, float width, float height, std::array<float, 4> color, std::string text, std::string font, int fontSize, bool autoShrink)
+    element Panel::AddButton(float xOffset, float yCenter, float width, float height, std::array<float, 4> color, GLuint textShader, std::string text, std::string font, int fontSize, bool autoShrink)
     {
         // Create new button
-        Button button(xOffset, yCenter, width, height, color, text, font, fontSize, autoShrink);
+        Button button(xOffset, yCenter, width, height, color, textShader, text, font, fontSize, autoShrink);
 
         // Update it's panel center
         if(side == -1)
@@ -1682,17 +1682,12 @@ namespace UI
 
     /* Full Button Constructor */
     // Creates a new button with all the information needed to draw it
-    Button::Button(float xOffset, float yCenter, float width, float height, std::array<float, 4> color, std::string text, std::string font, int fontSize, bool autoShrink):
+    Button::Button(float xOffset, float yCenter, float width, float height, std::array<float, 4> color, GLuint textShader, std::string text, std::string font, int fontSize, bool autoShrink):
         pressed(false), candidate(false), width(width), height(height), xOffset(xOffset), yCenter(yCenter), panelCenter(0.0f), Element(std::array<float, 4>{0, 0, 0, 0}, color),
-        textShader(0), textOverlay(nullptr), textFont(std::move(font)), textFontSize(fontSize), textAutoShrink(autoShrink)
-    {
-        this->color = color;
-        if (!text.empty())
-            textOverlay = std::make_unique<TextArea>(fontSize, 100, std::array<float, 2>{0.0f, 0.0f}, textFont, autoShrink, text, true);
-    }
+        textShader(textShader), textOverlay(nullptr), textFont(std::move(font)), textFontSize(fontSize), textAutoShrink(autoShrink), buttonText(std::move(text)) {}
 
     /* Button Initialization */
-    // Initializes shaders for the button to render, also initializes text and calculates position
+    // Initializes shaders for the button to render
     void Button::Init(GLuint shader)
     {
         if (vao == 0)
@@ -1721,32 +1716,12 @@ namespace UI
         radiusLoc = glGetUniformLocation(shader, "u_CornerRadius");
         glBindVertexArray(0);
 
-        if (textOverlay)
-        {
-            RecalculatePosition();
-            InitTextOverlay(textShader ? textShader : shader);
-        }
-        else
-        {
-            RecalculatePosition();
-        }
-    }
-
-    /* Initialize Drawing For Text */
-    // Initialize text with it's shader and position
-    void Button::InitTextOverlay(GLuint shader)
-    {
-        if (!textOverlay)
-            return;
-
-        textShader = shader;
-        textOverlay->SetCenter({(pos[0] + pos[2]) * 0.5f, (pos[1] + pos[3]) * 0.5f});
-        textOverlay->RecalculatePosition();
-        textOverlay->Init(shader);
+        InitTextOverlay(shader);
+        RecalculatePosition();
     }
 
     /* Button Drawing */
-    // Draws button and text from position
+    // Draws button from position
     void Button::Draw(GLuint shader)
     {
         glUseProgram(shader);
@@ -1771,11 +1746,7 @@ namespace UI
         glBindVertexArray(0);
 
         if (textOverlay)
-        {
-            textOverlay->SetCenter({(pos[0] + pos[2]) * 0.5f, (pos[1] + pos[3]) * 0.5f});
-            textOverlay->RecalculatePosition();
-            textOverlay->Draw(textShader ? textShader : shader);
-        }
+            textOverlay->Draw(textShader);
     }
 
     /* Button OnClick */
@@ -1802,19 +1773,33 @@ namespace UI
             pressed = true;
     }
 
-    /* Button Text Update */
-    // Called by user to update button's text
-    void Button::SetText(const std::string &text)
+    /* Button Text Overlay Initialization */
+    // Creates and positions the optional label shown on top of the button
+    void Button::InitTextOverlay(GLuint shader)
     {
         if (!textOverlay)
         {
-            textOverlay = std::make_unique<TextArea>(textFontSize, 100, std::array<float, 2>{0.0f, 0.0f}, textFont, textAutoShrink, text, true);
-            if (textShader != 0)
-                InitTextOverlay(textShader);
+            std::array<float, 2> overlayCenter{0.0f, 0.0f};
+            textOverlay = std::make_unique<TextArea>(textFontSize, 64u, overlayCenter, textFont, textAutoShrink, buttonText, true);
+            textOverlay->Init(textShader);
         }
-        else
+
+        textOverlay->font = textFont;
+        textOverlay->fontSize = textFontSize;
+        textOverlay->autoShrink = textAutoShrink;
+        textOverlay->SetText(buttonText);
+        textOverlay->RecalculatePosition();
+    }
+
+    /* Button Text Update */
+    // Updates the displayed text label for the button
+    void Button::SetText(const std::string &text)
+    {
+        buttonText = text;
+        if (textOverlay)
         {
             textOverlay->SetText(text);
+            textOverlay->RecalculatePosition();
         }
     }
 
@@ -1827,6 +1812,13 @@ namespace UI
         const float y0 = yCenter - height / 2.0f;
         const float y1 = yCenter + height / 2.0f;
         pos = {x0, y0, x1, y1};
+
+        if (textOverlay)
+        {
+            const float centerX = (x0 + x1) * 0.5f;
+            const float centerY = (y0 + y1) * 0.5f;
+            textOverlay->SetCenter({centerX, centerY});
+        }
     }
 
     #pragma endregion
