@@ -20,13 +20,15 @@ double timeSpeed = .1;
 
 const double radius = .01;
 
-const int count = 10000;
-unsigned int variety = 3; // Total number of different particle types to use; not marked as const as it is changed if too large in main()
+const int count = 0;
+unsigned int variety = 4; // Total number of different particle types to use; not marked as const as it is changed if too large in main()
 
 const bool punishClusters = false;
 
 const bool side = 0; // Left = 0; right = 1
 const float length = .6f;
+
+const std::string fontPath = "res/fonts/Uroob-Regular.ttf";
 
 #pragma endregion
 
@@ -63,6 +65,25 @@ class Particle : public body::Body
                 case Color::White: return {1, 1, 1, a};
 
                 default: return {0, 0, 0, a};
+            }
+        }
+
+        /* Color Name Lookup */
+        // Returns color's display name based on a given color
+        static std::string GetColorName(Color name)
+        {
+            switch(name)
+            {
+                case Color::Red: return "Red";
+                case Color::Green: return "Green";
+                case Color::Blue: return "Blue";
+                case Color::Orange: return "Orange";
+                case Color::Yellow: return "Yellow";
+                case Color::Pink: return "Pink";
+                case Color::Purple: return "Purple";
+                case Color::White: return "White";
+
+                default: return "Unknown";
             }
         }
 
@@ -116,7 +137,7 @@ std::vector<Particle> InitializeParticles(int count, int variety)
     {
         for(int j = 0; j < count/variety; j++) // j = index of particle created in a given particle type
         {
-            // Random positioning for particles(between 0 and 1)
+            // Random positioning for particles(between -1 and 1)
             float x = (rand() / (float)RAND_MAX) * 2.0f - 1.0f;
             float y = (rand() / (float)RAND_MAX) * 2.0f - 1.0f;
 
@@ -132,7 +153,7 @@ std::vector<Particle> InitializeParticles(int count, int variety)
 #pragma region Graphics Functions
 
 /* Shader Compiler*/
-// Returns shader as string from basic.shader
+// Compiles GLSL source code and returns the OpenGL shader object ID
 static unsigned int CompileShader(const std::string& source, unsigned int type)
 {
     // Creates a shader of given type to load shader onto
@@ -150,7 +171,7 @@ static unsigned int CompileShader(const std::string& source, unsigned int type)
     int result;
     glGetShaderiv(id, GL_COMPILE_STATUS, &result);
 
-    // Gets shader compile error if shader failed to load
+    // Retrieve and print the shader compilation log
     if (!result)
     {
         // Message length
@@ -250,7 +271,7 @@ int main()
 
     RandomizeInteractions(interactions);
 
-    // Allows only so many colors
+    // Clamp the number of particle types to the number of available colors
     if(variety > colorsCount)
         variety = colorsCount;
 
@@ -334,14 +355,34 @@ int main()
     auto &world = panel.GetWorld();
 
     UI::element grid = panel.AddGrid(0, .5, .4, variety, &interactions, true, aspect);
-    UI::element text = panel.AddTextElement(20, 100, {-.99, .95}, "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", true, "Time Scale: ", false);
+    UI::element text = panel.AddTextElement(35, 100, {-.99, .95}, fontPath, true, "Time Scale: ", false);
     UI::element slider = panel.AddSlider(0, .947f, .2f, .04f, timeSpeed);
-    UI::element deleteButton = panel.AddButton(0, 0, .2, .05, {.7, .7, .7, .9}, textShader, "Delete", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24);
 
     panel.LinkElements(text, slider);
 
+    std::vector<std::string> colorNames;
+    std::vector<std::array<float, 4>> colorOptions;
+    colorNames.reserve(variety);
+    colorOptions.reserve(variety);
+
+    for (unsigned int i = 0; i < variety; i++)
+    {
+        Color currentColor = static_cast<Color>(i);
+        colorNames.push_back(Particle::GetColorName(currentColor));
+        colorOptions.push_back(Particle::GetColor(currentColor, .9f));
+    }
+
+    UI::SubPanel subPanel(.5f, .01f, {.16f, .16f, .18f, .75f});
+    UI::element amountText = subPanel.AddTextElement(18, 100, -.2f, .18f, fontPath, true, "Number of Particles: 100", false);
+    UI::element amountSlider = subPanel.AddSlider(.1f, .18f, .2f, .04f, 99.0f / 9999.0f);
+    UI::element spawnButton = subPanel.AddButton(.12f, .1f, .1f, .06f, {.35f, .65f, .9f, .9f}, textShader, "Spawn", fontPath, 22);
+    UI::element deleteButton = subPanel.AddButton(0.0f, 0.0f, .22f, .055f, {.7f, .25f, .25f, .9f}, textShader, "Delete", fontPath, 22);
+    UI::element colorDropdown = subPanel.AddDropdownButton(-.1f, .1f, .22f, .06f, colorNames, colorOptions, textShader, fontPath, 20);
+    subPanel.SetActive(false);
+
     // Initialize everything
     panel.Init(uiShader, textShader, window);
+    subPanel.Init(uiShader, textShader);
 
     #pragma endregion
 
@@ -361,7 +402,7 @@ int main()
     /* Main Loop */
     while (!glfwWindowShouldClose(window))
     {
-        // Get current time multiplier
+        // Read the current simulation speed from the UI slider
         timeSpeed = panel.GetSliderValue(slider);
 
         // Get current time
@@ -437,9 +478,40 @@ int main()
             particles[i].Update(simDelta);
         }
 
-        // Gets the circle properties from each particle that needs to be rendered
+        // Keep the render buffer synchronized with the current particle set so removed particles do not linger on screen
+        circles.resize(particles.size());
         for (size_t i = 0; i < particles.size(); ++i)
+        {
             circles[i] = particles[i].GetProperties();
+        }
+
+        // Remove any selected entries that no longer correspond to live particles
+        std::vector<void*> prunedSelection;
+        std::vector<float> prunedMarkerSizes;
+        prunedSelection.reserve(world.selected.size());
+        prunedMarkerSizes.reserve(world.selected.size());
+
+        for (size_t i = 0; i < world.selected.size(); ++i)
+        {
+            void *entry = world.selected[i];
+            if (!entry)
+                continue;
+
+            const auto *candidate = static_cast<const Particle*>(entry);
+            const bool stillLive = std::any_of(particles.begin(), particles.end(), [candidate](const Particle &particle)
+            {
+                return &particle == candidate;
+            });
+
+            if (stillLive)
+            {
+                prunedSelection.push_back(entry);
+                prunedMarkerSizes.push_back(world.selectedMarkerSizes[i]);
+            }
+        }
+
+        world.selected = std::move(prunedSelection);
+        world.selectedMarkerSizes = std::move(prunedMarkerSizes);
 
         // Clears screen
         glClear(GL_COLOR_BUFFER_BIT);
@@ -451,6 +523,19 @@ int main()
         world.DisplayAreaSelection(uiShader);
 
         panel.Update(uiShader, textShader, window);
+
+        const bool worldspaceSelected = UI::Events::rightSelectionActive;
+        const bool particlesSelected = !world.selected.empty();
+        const float amountSliderValue = std::max(0.0f, subPanel.GetSliderValue(amountSlider));
+        const int particlesToSpawn = 1 + static_cast<int>(std::round(amountSliderValue * 9999.0f));
+        subPanel.SetText(amountText, "Number of Particles: " + std::to_string(particlesToSpawn));
+        subPanel.SetActive(particlesSelected || worldspaceSelected);
+        subPanel.SetElementActive(amountText, worldspaceSelected);
+        subPanel.SetElementActive(amountSlider, worldspaceSelected);
+        subPanel.SetElementActive(spawnButton, worldspaceSelected);
+        subPanel.SetElementActive(colorDropdown, worldspaceSelected);
+        subPanel.SetElementActive(deleteButton, particlesSelected);
+        subPanel.Update(uiShader, textShader, window);
 
         // Clears user events buffer
         glfwPollEvents();
@@ -511,6 +596,66 @@ int main()
                     }
                 }
             }
+        }
+
+        // Delete all selected particles when button is pressed
+        if(particlesSelected && subPanel.IsButtonDown(deleteButton))
+        {
+            std::vector<size_t> indicesToRemove;
+            indicesToRemove.reserve(world.selected.size());
+
+            for(void *ptr : world.selected)
+            {
+                // Get particle from ptr
+                Particle *particle = static_cast<Particle*>(ptr);
+                auto it = std::find_if(particles.begin(), particles.end(), [particle](const Particle &candidate)
+                {
+                    return &candidate == particle;
+                });
+
+                // Record the particle's index so it can be removed later
+                if (it != particles.end())
+                    indicesToRemove.push_back(static_cast<size_t>(std::distance(particles.begin(), it)));
+            }
+
+            std::sort(indicesToRemove.begin(), indicesToRemove.end(), std::greater<size_t>());
+            for (size_t index : indicesToRemove)
+                particles.erase(particles.begin() + index);
+
+            world.selected.clear();
+            world.selectedMarkerSizes.clear();
+            subPanel.ResetButton(deleteButton);
+        }
+
+        // Spawn selected color particles randomly inside the selected worldspace when button is pressed
+        if(subPanel.IsButtonDown(spawnButton))
+        {
+            if (UI::Events::rightSelectionActive)
+            {
+                // Store bounds for the selected worldspace
+                const double minX = std::min(UI::Events::rightSelectionStartPos[0], UI::Events::rightSelectionCurrentPos[0]);
+                const double maxX = std::max(UI::Events::rightSelectionStartPos[0], UI::Events::rightSelectionCurrentPos[0]);
+                const double minY = std::min(UI::Events::rightSelectionStartPos[1], UI::Events::rightSelectionCurrentPos[1]);
+                const double maxY = std::max(UI::Events::rightSelectionStartPos[1], UI::Events::rightSelectionCurrentPos[1]);
+
+                // Read the dropdown's currently selected color index
+                int selectedColorIndex = subPanel.GetDropdownSelectedIndex(colorDropdown);
+                if (selectedColorIndex < 0)
+                    selectedColorIndex = 0;
+
+                Color selectedColor = static_cast<Color>(selectedColorIndex);
+
+                // Add the requested amount of particles scattered uniformly inside the selected worldspace
+                for (int i = 0; i < particlesToSpawn; i++)
+                {
+                    const float x = static_cast<float>(minX + (rand() / (float)RAND_MAX) * (maxX - minX));
+                    const float y = static_cast<float>(minY + (rand() / (float)RAND_MAX) * (maxY - minY));
+
+                    particles.emplace_back(gfx::Circle{x, y, radius, Particle::GetColor(selectedColor, 1)}, selectedColor);
+                }
+            }
+
+            subPanel.ResetButton(spawnButton);
         }
 
         // Swaps visible and write buffers

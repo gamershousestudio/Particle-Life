@@ -42,10 +42,13 @@ namespace UI
         static bool horResizeCursor;
     };
 
+    class SubPanel;
+
     // Structure: element definition
     struct element
     {
         friend class Panel;
+        friend class SubPanel;
         friend class Element;
 
         private:
@@ -205,6 +208,10 @@ namespace UI
             void Update(GLuint uiShader, GLuint textShader, GLFWwindow *window); // Panel update function; ran every frame
 
             float GetSliderValue(element slider); // Gets the given slider's normalized value
+            bool IsButtonDown(element button); // Returns the current status of the button
+            void ResetButton(element button); // Resets the button state after handling it
+            void SetElementActive(element elementId, bool active); // Enables or disables an element from input/rendering
+            int GetDropdownSelectedIndex(element dropdown); // Gets currently selected dropdown option
 
             World& GetWorld() { return world; }
             const World& GetWorld() const { return world; }
@@ -305,6 +312,7 @@ namespace UI
     class Slider : public Element
     {
         friend class Panel;
+        friend class SubPanel;
 
         float normalizedValue;
         bool isDragging;
@@ -330,6 +338,7 @@ namespace UI
     class Button : public Element
     {
         friend class Panel;
+        friend class SubPanel;
 
         bool pressed;
         bool candidate;
@@ -361,6 +370,108 @@ namespace UI
 
         bool IsPressed() const { return pressed; } // Returns if button is/isn't pressed
         void ResetPressed() { pressed = false; } // Resets button state
+    };
+
+    class DropdownButton : public Element
+    {
+        friend class Panel;
+        friend class SubPanel;
+
+        std::vector<std::string> labels;
+        std::vector<std::array<float, 4>> optionColors;
+        std::unique_ptr<TextArea> selectedTextOverlay;
+        std::vector<std::unique_ptr<TextArea>> optionTextOverlays;
+
+        int selectedIndex;
+        int candidateIndex;
+        bool open;
+        bool mainCandidate;
+
+        float width;
+        float height;
+        float xOffset;
+        float yCenter;
+        float panelCenter;
+
+        GLuint shapeLoc = -1;
+        GLuint radiusLoc = -1;
+        GLuint textShader = 0;
+
+        std::string textFont;
+        int textFontSize;
+        bool textAutoShrink;
+
+        DropdownButton();
+        DropdownButton(float xOffset, float yCenter, float width, float height, std::vector<std::string> labels, std::vector<std::array<float, 4>> optionColors, GLuint textShader, std::string font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int fontSize = 18, bool autoShrink = true);
+
+        void Init(GLuint shader) override; // Loads necessary shader for drawing dropdown
+        void Draw(GLuint shader) override; // Draws dropdown and any currently open options
+        void HandleInput(GLFWwindow *window) override; // Updates dropdown open/selected state
+        void InitTextOverlays(); // Adds text overlays for the selected value and options
+        void RecalculatePosition(); // Updates position when owner panel moves
+        std::array<float, 4> GetOptionPosition(int index) const; // Gets position for dropdown option
+        bool ContainsPoint(const std::array<float, 4> &bounds, float x, float y) const; // Checks if a point is inside given bounds
+
+        int GetSelectedIndex() const { return selectedIndex; } // Returns currently selected option
+    };
+
+    class SubPanel
+    {
+        unsigned int nextId;
+
+        std::vector<ElementHandle> elements; // Every UI attached to subpanel
+
+        float size;
+        float margin;
+        std::array<float, 4> color;
+        bool active;
+
+        GLuint vao = 0;
+        GLuint vbo = 0;
+        GLuint ebo = 0;
+
+        GLuint posLoc = -1;
+        GLuint scaleLoc = -1;
+        GLuint colorLoc = -1;
+
+        unsigned int indices[6] = { // What indices from the positions to use to render each triangle (instead of buffering extra positions)
+                0, 1, 2,
+                2, 3, 0
+            };
+
+        float vertices[8] = {
+                -0.5f, -0.5f,
+                0.5f, -0.5f,
+                0.5f,  0.5f,
+                -0.5f,  0.5f
+            };
+
+        static std::vector<SubPanel*> registeredPanels;
+
+        public:
+            SubPanel(); // Default constructor; defines empty subpanel
+            SubPanel(float size, float margin, std::array<float, 4> color); // Full constructor; creates a top-right square subpanel
+
+            void Init(GLuint uiShader, GLuint textShader); // Loads subpanel and attached elements
+            void Draw(GLuint uiShader, GLuint textShader); // Draws subpanel and attached elements
+            void Update(GLuint uiShader, GLuint textShader, GLFWwindow *window); // Updates all attached elements
+
+            element AddTextElement(float fontSize, unsigned int charactersPerLine, float xOffset, float yOffset, std::string font, bool autoShrink, std::string text="", bool startAtCenter=true); // Create a text element
+            element AddSlider(float xOffset, float yOffset, float length, float totalHeight, float defaultValue); // Create a slider
+            element AddButton(float xOffset, float yOffset, float width, float height, std::array<float, 4> color, GLuint textShader, std::string text = "", std::string font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int fontSize = 18, bool autoShrink = true); // Create a button
+            element AddDropdownButton(float xOffset, float yOffset, float width, float height, std::vector<std::string> labels, std::vector<std::array<float, 4>> optionColors, GLuint textShader, std::string font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int fontSize = 18, bool autoShrink = true); // Create a dropdown button
+
+            float GetSliderValue(element slider); // Gets the given slider's normalized value
+            bool IsButtonDown(element button); // Returns the current status of the button
+            void ResetButton(element button); // Resets the button state after handling it
+            int GetDropdownSelectedIndex(element dropdown); // Gets currently selected dropdown option
+            void SetText(element textElement, std::string text); // Updates a text element
+            void SetElementActive(element elementId, bool active); // Enables or disables an element from input/rendering
+            void SetActive(bool active); // Shows/hides the entire subpanel
+            bool IsActive() const { return active; } // Returns if subpanel is active
+            bool ContainsPoint(float x, float y) const; // Returns if point is inside the subpanel
+
+            static bool AnyActivePanelContains(float x, float y); // Returns if point is inside any active subpanel
     };
 }
 

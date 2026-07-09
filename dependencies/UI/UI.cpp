@@ -456,7 +456,6 @@ namespace UI
         glUseProgram(uiShader);
         glBindVertexArray(vao);
 
-
         // Makes sure shader works correctly
         if (posLoc == -1 || scaleLoc == -1 || colorLoc == -1)
         {
@@ -563,6 +562,7 @@ namespace UI
                 }
             }
         }
+
     }
 
     /* Mouse Input Callback */
@@ -592,9 +592,6 @@ namespace UI
             // Was it clicked or released, or has it been down
             if(!Events::leftMouseDown && action == GLFW_PRESS) // Just clicked
             {
-                // Disable the blue area-selection overlay when a left-click selection starts
-                Events::rightSelectionActive = false;
-
                 // Tell event struct it has been clicked and where
                 Events::leftMouseDown = true;
                 Events::pressedPos = {x, y};
@@ -606,14 +603,16 @@ namespace UI
                 {
                     Events::draggingPanel = true;
                 }
-                // Make sure scroll occurred somewhere on the panel(x/w)*2-1
-                else if((panel->side == -1 && x < (-1+panel->length)) || (panel->side == 1 && x > (1-panel->length))) // Only continue if scroll area was within the panel.length
+                // Make sure scroll occurred somewhere on the panel(x/w)*2-1 or subpanel
+                else if(((panel->side == -1 && x < (-1+panel->length)) || (panel->side == 1 && x > (1-panel->length))) || SubPanel::AnyActivePanelContains(static_cast<float>(x), static_cast<float>(y))) // Only continue if click area was within UI
                 {
                     Events::leftMouseDownStartedOnPanel = true;
                 }
                 // Is in the world
                 else
                 {
+                    // Disable the blue area-selection overlay only when a new left-click world selection starts
+                    Events::rightSelectionActive = false;
                     Events::leftMouseDownStartedOnPanel = false;
                 }
             }
@@ -640,7 +639,7 @@ namespace UI
                 panel->world.selectedMarkerSizes.clear();
 
                 // Make sure click did/didn't start on panel
-                if((panel->side == -1 && x < (-1+panel->length)) || (panel->side == 1 && x > (1-panel->length)))
+                if(((panel->side == -1 && x < (-1+panel->length)) || (panel->side == 1 && x > (1-panel->length))) || SubPanel::AnyActivePanelContains(static_cast<float>(x), static_cast<float>(y)))
                     Events::rightMouseDownStartedOnPanel = true;
                 else
                 {
@@ -655,6 +654,7 @@ namespace UI
                 Events::rightSelectionCurrentPos = {x, y};
             }
         }
+
     }
 
     /* Grid Value Fetcher */
@@ -901,6 +901,7 @@ namespace UI
                 }
             }
         }
+
     }
 
     /* Panel Update Function */
@@ -995,6 +996,64 @@ namespace UI
                     return -1;
             }
         }
+
+        return -1;
+    }
+
+    bool Panel::IsButtonDown(element button)
+    {
+        // Loop through each element attached to panel
+        for(int i = 0; i < elements.size(); i++)
+        {
+            // Check if element is right one
+            if(elements[i].id == button.id)
+            {
+                // Ensure element is a button
+                if(auto *buttonPtr = dynamic_cast<Button*>(elements[i].ptr.get()))
+                    return buttonPtr->pressed;
+            }
+        }
+
+        return false;
+    }
+
+    void Panel::ResetButton(element button)
+    {
+        for(int i = 0; i < elements.size(); i++)
+        {
+            if(elements[i].id == button.id)
+            {
+                if(auto *buttonPtr = dynamic_cast<Button*>(elements[i].ptr.get()))
+                    buttonPtr->pressed = false;
+                return;
+            }
+        }
+    }
+
+    void Panel::SetElementActive(element elementId, bool active)
+    {
+        for (auto &entry : elements)
+        {
+            if (entry.id == elementId)
+            {
+                entry.active = active;
+                return;
+            }
+        }
+    }
+
+    int Panel::GetDropdownSelectedIndex(element dropdown)
+    {
+        for(int i = 0; i < elements.size(); i++)
+        {
+            if(elements[i].id == dropdown.id)
+            {
+                if(auto *dropdownPtr = dynamic_cast<DropdownButton*>(elements[i].ptr.get()))
+                    return dropdownPtr->GetSelectedIndex();
+            }
+        }
+
+        return -1;
     }
 
     #pragma endregion
@@ -1749,8 +1808,8 @@ namespace UI
             textOverlay->Draw(textShader);
     }
 
-    /* Button OnClick */
-    // Called when button is clicked: updates Events struct
+    /* Button Input Handling */
+    // Updates hover/press state for the button based on the current cursor and mouse state
     void Button::HandleInput(GLFWwindow *window)
     {
         double cursorX, cursorY;
@@ -1763,18 +1822,19 @@ namespace UI
         const float y = static_cast<float>(-((cursorY / windowHeight) * 2.0 - 1.0));
 
         const bool hovered = (x >= pos[0] && x <= pos[2] && y >= pos[1] && y <= pos[3]);
+        const bool wasCandidate = candidate;
 
         if (hovered && Events::leftMouseDown)
             candidate = true;
-        else if (!Events::leftMouseDown)
+        else
             candidate = false;
 
-        if (!Events::leftMouseDown && hovered && !pressed)
+        if (!Events::leftMouseDown && hovered && wasCandidate && !pressed)
             pressed = true;
     }
 
     /* Button Text Overlay Initialization */
-    // Creates and positions the optional label shown on top of the button
+    // Creates and positions the label shown on top of the button
     void Button::InitTextOverlay(GLuint shader)
     {
         if (!textOverlay)
@@ -1792,7 +1852,7 @@ namespace UI
     }
 
     /* Button Text Update */
-    // Updates the displayed text label for the button
+    // Updates the displayed label text for the button
     void Button::SetText(const std::string &text)
     {
         buttonText = text;
@@ -1819,6 +1879,601 @@ namespace UI
             const float centerY = (y0 + y1) * 0.5f;
             textOverlay->SetCenter({centerX, centerY});
         }
+    }
+
+    #pragma endregion
+
+    // DropdownButton class functions
+    #pragma region DropdownButton
+
+    /* Default Dropdown Constructor */
+    // Initializes everything necessary for an empty dropdown
+    DropdownButton::DropdownButton():
+        selectedIndex(0), candidateIndex(-1), open(false), mainCandidate(false), width(0.0f), height(0.0f), xOffset(0.0f), yCenter(0.0f), panelCenter(0.0f), Element() {}
+
+    /* Full Dropdown Constructor */
+    // Creates a new dropdown with all the information needed to draw it
+    DropdownButton::DropdownButton(float xOffset, float yCenter, float width, float height, std::vector<std::string> labels, std::vector<std::array<float, 4>> optionColors, GLuint textShader, std::string font, int fontSize, bool autoShrink):
+        labels(std::move(labels)), optionColors(std::move(optionColors)), selectedIndex(0), candidateIndex(-1), open(false), mainCandidate(false), width(width), height(height), xOffset(xOffset), yCenter(yCenter), panelCenter(0.0f),
+        Element(std::array<float, 4>{0, 0, 0, 0}, std::array<float, 4>{0.7f, 0.7f, 0.7f, 0.9f}), textShader(textShader), textFont(std::move(font)), textFontSize(fontSize), textAutoShrink(autoShrink)
+    {
+        // If no labels were given, add a fallback option so drawing and selection always have a valid index
+        if (this->labels.empty())
+            this->labels.push_back("None");
+
+        // Colors are optional, but each visible row needs one color value for its swatch/background
+        while (this->optionColors.size() < this->labels.size())
+            this->optionColors.push_back({0.7f, 0.7f, 0.7f, 0.9f});
+    }
+
+    /* Dropdown Initialization */
+    // Initializes shaders for the dropdown to render
+    void DropdownButton::Init(GLuint shader)
+    {
+        if (vao == 0)
+            glGenVertexArrays(1, &vao);
+        if (vbo == 0)
+            glGenBuffers(1, &vbo);
+        if (ebo == 0)
+            glGenBuffers(1, &ebo);
+
+        glBindVertexArray(vao);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(float), vertices, GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, 0);
+        glEnableVertexAttribArray(0);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices, GL_STATIC_DRAW);
+
+        glUseProgram(shader);
+        glBindVertexArray(vao);
+        posLoc = glGetUniformLocation(shader, "u_Position");
+        scaleLoc = glGetUniformLocation(shader, "u_Scale");
+        colorLoc = glGetUniformLocation(shader, "desiredColor");
+        shapeLoc = glGetUniformLocation(shader, "u_Shape");
+        radiusLoc = glGetUniformLocation(shader, "u_CornerRadius");
+        glBindVertexArray(0);
+
+        InitTextOverlays();
+        RecalculatePosition();
+    }
+
+    /* Dropdown Text Initialization */
+    // Creates and positions all labels shown by the dropdown
+    void DropdownButton::InitTextOverlays()
+    {
+        // The selected text overlay is the label drawn on the closed dropdown button
+        if (!selectedTextOverlay)
+        {
+            std::array<float, 2> overlayCenter{0.0f, 0.0f};
+            selectedTextOverlay = std::make_unique<TextArea>(textFontSize, 64u, overlayCenter, textFont, textAutoShrink, labels[selectedIndex], true);
+            selectedTextOverlay->Init(textShader);
+        }
+
+        // The option overlays are separate because the open menu may draw the selected option again in a different row
+        while (optionTextOverlays.size() < labels.size())
+        {
+            std::array<float, 2> overlayCenter{0.0f, 0.0f};
+            auto optionText = std::make_unique<TextArea>(textFontSize, 64u, overlayCenter, textFont, textAutoShrink, labels[optionTextOverlays.size()], true);
+            optionText->Init(textShader);
+            optionTextOverlays.push_back(std::move(optionText));
+        }
+    }
+
+    /* Dropdown Position Calculation */
+    // Recalculates the global position of the dropdown from the relative position
+    void DropdownButton::RecalculatePosition()
+    {
+        const float x0 = panelCenter + xOffset - width / 2.0f;
+        const float x1 = panelCenter + xOffset + width / 2.0f;
+        const float y0 = yCenter - height / 2.0f;
+        const float y1 = yCenter + height / 2.0f;
+        pos = {x0, y0, x1, y1};
+
+        if (selectedTextOverlay)
+        {
+            selectedTextOverlay->SetText(labels[selectedIndex]);
+            selectedTextOverlay->SetCenter({(x0 + x1) * 0.5f, (y0 + y1) * 0.5f});
+        }
+
+        for (int i = 0; i < static_cast<int>(optionTextOverlays.size()); i++)
+        {
+            const std::array<float, 4> optionPos = GetOptionPosition(i);
+            optionTextOverlays[i]->SetCenter({(optionPos[0] + optionPos[2]) * 0.5f, (optionPos[1] + optionPos[3]) * 0.5f});
+        }
+    }
+
+    /* Dropdown Option Position */
+    // Returns where the indexed option should render when the dropdown is open
+    std::array<float, 4> DropdownButton::GetOptionPosition(int index) const
+    {
+        const float optionTop = pos[1] - height * index;
+        const float optionBottom = optionTop - height;
+        return {pos[0], optionBottom, pos[2], optionTop};
+    }
+
+    /* Bounds Check */
+    // Returns if x/y is inside the given bounds
+    bool DropdownButton::ContainsPoint(const std::array<float, 4> &bounds, float x, float y) const
+    {
+        return bounds[0] <= x && x <= bounds[2] && bounds[1] <= y && y <= bounds[3];
+    }
+
+    /* Dropdown Drawing */
+    // Draws dropdown from position, and draws all options if it is currently open
+    void DropdownButton::Draw(GLuint shader)
+    {
+        glUseProgram(shader);
+        glBindVertexArray(vao);
+
+        int viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        const float aspect = static_cast<float>(viewport[2]) / std::max(1, viewport[3]);
+
+        glUniform1i(shapeLoc, 1);
+        glUniform1f(radiusLoc, std::min(width, height) * 0.18f);
+        glUniform1f(glGetUniformLocation(shader, "u_Aspect"), aspect);
+
+        // Draw the closed button using the currently selected color
+        std::array<float, 4> selectedColor = optionColors[selectedIndex];
+        if (mainCandidate)
+            selectedColor = {selectedColor[0] * 0.8f, selectedColor[1] * 0.8f, selectedColor[2] * 0.8f, selectedColor[3]};
+
+        glUniform2f(posLoc, (pos[0] + pos[2]) * 0.5f, (pos[1] + pos[3]) * 0.5f);
+        glUniform2f(scaleLoc, pos[2] - pos[0], pos[3] - pos[1]);
+        glUniform4f(colorLoc, selectedColor[0], selectedColor[1], selectedColor[2], selectedColor[3]);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+
+        // Draw each selectable option beneath the closed button when open
+        if (open)
+        {
+            for (int i = 0; i < static_cast<int>(labels.size()); i++)
+            {
+                const std::array<float, 4> optionPos = GetOptionPosition(i);
+                std::array<float, 4> optionColor = optionColors[i];
+
+                if (candidateIndex == i)
+                    optionColor = {optionColor[0] * 0.8f, optionColor[1] * 0.8f, optionColor[2] * 0.8f, optionColor[3]};
+
+                glUniform2f(posLoc, (optionPos[0] + optionPos[2]) * 0.5f, (optionPos[1] + optionPos[3]) * 0.5f);
+                glUniform2f(scaleLoc, optionPos[2] - optionPos[0], optionPos[3] - optionPos[1]);
+                glUniform4f(colorLoc, optionColor[0], optionColor[1], optionColor[2], optionColor[3]);
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+            }
+        }
+
+        glBindVertexArray(0);
+
+        if (selectedTextOverlay)
+            selectedTextOverlay->Draw(textShader);
+
+        if (open)
+        {
+            for (auto &textOverlay : optionTextOverlays)
+                textOverlay->Draw(textShader);
+        }
+    }
+
+    /* Dropdown Input Handling */
+    // Updates hover/open/selection state for the dropdown based on the current cursor and mouse state
+    void DropdownButton::HandleInput(GLFWwindow *window)
+    {
+        double cursorX, cursorY;
+        glfwGetCursorPos(window, &cursorX, &cursorY);
+
+        int windowWidth, windowHeight;
+        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+
+        const float x = static_cast<float>((cursorX / windowWidth) * 2.0 - 1.0);
+        const float y = static_cast<float>(-((cursorY / windowHeight) * 2.0 - 1.0));
+
+        const bool mainHovered = ContainsPoint(pos, x, y);
+        int hoveredOption = -1;
+
+        if (open)
+        {
+            for (int i = 0; i < static_cast<int>(labels.size()); i++)
+            {
+                if (ContainsPoint(GetOptionPosition(i), x, y))
+                {
+                    hoveredOption = i;
+                    break;
+                }
+            }
+        }
+
+        const bool wasMainCandidate = mainCandidate;
+        const int previousCandidateIndex = candidateIndex;
+
+        mainCandidate = mainHovered && Events::leftMouseDown;
+        candidateIndex = (hoveredOption >= 0 && Events::leftMouseDown) ? hoveredOption : -1;
+
+        if (!Events::leftMouseDown && wasMainCandidate && mainHovered)
+        {
+            open = !open;
+            return;
+        }
+
+        if (!Events::leftMouseDown && previousCandidateIndex >= 0)
+        {
+            if (hoveredOption == previousCandidateIndex)
+                selectedIndex = previousCandidateIndex;
+
+            open = false;
+            RecalculatePosition();
+        }
+    }
+
+    #pragma endregion
+
+    // SubPanel class functions
+    #pragma region SubPanel
+
+    std::vector<SubPanel*> SubPanel::registeredPanels;
+
+    /* Default SubPanel Constructor */
+    // Creates an inactive, empty subpanel
+    SubPanel::SubPanel():
+        nextId(0), size(0.0f), margin(0.0f), color({1, 1, 1, .5f}), active(false) {}
+
+    /* Full SubPanel Constructor */
+    // Creates a top-right square subpanel with a given size, margin, and color
+    SubPanel::SubPanel(float size, float margin, std::array<float, 4> color):
+        nextId(0), size(size), margin(margin), color(color), active(true) {}
+
+    /* SubPanel Text Area Creation */
+    // Creates a new text area under the subpanel
+    element SubPanel::AddTextElement(float fontSize, unsigned int charactersPerLine, float xOffset, float yOffset, std::string font, bool autoShrink, std::string text, bool startAtCenter)
+    {
+        // Calculate the subpanel's center so the text can be positioned relative to it
+        const float subPanelCenterX = 1.0f - margin - size / 2.0f;
+        const float subPanelCenterY = 1.0f - margin - size / 2.0f;
+
+        // Create new text area
+        TextArea textArea(fontSize, charactersPerLine, {subPanelCenterX + xOffset, subPanelCenterY + yOffset}, font, autoShrink, text, startAtCenter);
+
+        // Add to elements
+        elements.push_back(ElementHandle{std::make_unique<TextArea>(std::move(textArea)), element{nextId}, true});
+
+        // Update Ids
+        element assignedId = elements.back().id;
+        nextId++;
+
+        if(nextId == 0)
+            std::cout << "ERROR: To many elements have been created under subpanel!" << std::endl;
+
+        return assignedId;
+    }
+
+    /* SubPanel Slider Creation */
+    // Creates a new slider under the subpanel
+    element SubPanel::AddSlider(float xOffset, float yOffset, float length, float totalHeight, float defaultValue)
+    {
+        // Create new slider
+        Slider slider(xOffset, 0.0f, length, totalHeight, defaultValue);
+
+        // Subpanel centers both axes itself, so yOffset is stored as an absolute yCenter before initializing
+        slider.panelCenter = 1.0f - margin - size / 2.0f;
+        slider.yCenter = 1.0f - margin - size / 2.0f + yOffset;
+        slider.RecalculatePosition();
+
+        // Add to elements
+        elements.push_back(ElementHandle{std::make_unique<Slider>(std::move(slider)), element{nextId}, true});
+
+        // Update Ids
+        element assignedId = elements.back().id;
+        nextId++;
+
+        if(nextId == 0)
+            std::cout << "ERROR: To many elements have been created under subpanel!" << std::endl;
+
+        return assignedId;
+    }
+
+    /* SubPanel Button Creation */
+    // Creates a new button under the subpanel
+    element SubPanel::AddButton(float xOffset, float yOffset, float width, float height, std::array<float, 4> color, GLuint textShader, std::string text, std::string font, int fontSize, bool autoShrink)
+    {
+        // Create new button
+        Button button(xOffset, 0.0f, width, height, color, textShader, text, font, fontSize, autoShrink);
+
+        // Subpanel centers both axes itself, so yOffset is stored as an absolute yCenter before initializing
+        button.panelCenter = 1.0f - margin - size / 2.0f;
+        button.yCenter = 1.0f - margin - size / 2.0f + yOffset;
+        button.RecalculatePosition();
+
+        // Add to elements
+        elements.push_back(ElementHandle{std::make_unique<Button>(std::move(button)), element{nextId}, true});
+
+        // Update Ids
+        element assignedId = elements.back().id;
+        nextId++;
+
+        if(nextId == 0)
+            std::cout << "ERROR: To many elements have been created under subpanel!" << std::endl;
+
+        return assignedId;
+    }
+
+    /* SubPanel Dropdown Creation */
+    // Creates a new dropdown under the subpanel
+    element SubPanel::AddDropdownButton(float xOffset, float yOffset, float width, float height, std::vector<std::string> labels, std::vector<std::array<float, 4>> optionColors, GLuint textShader, std::string font, int fontSize, bool autoShrink)
+    {
+        // Create new dropdown
+        DropdownButton dropdown(xOffset, 0.0f, width, height, labels, optionColors, textShader, font, fontSize, autoShrink);
+
+        // Subpanel centers both axes itself, so yOffset is stored as an absolute yCenter before initializing
+        dropdown.panelCenter = 1.0f - margin - size / 2.0f;
+        dropdown.yCenter = 1.0f - margin - size / 2.0f + yOffset;
+        dropdown.RecalculatePosition();
+
+        // Add to elements
+        elements.push_back(ElementHandle{std::make_unique<DropdownButton>(std::move(dropdown)), element{nextId}, true});
+
+        // Update Ids
+        element assignedId = elements.back().id;
+        nextId++;
+
+        if(nextId == 0)
+            std::cout << "ERROR: To many elements have been created under subpanel!" << std::endl;
+
+        return assignedId;
+    }
+
+    /* SubPanel Graphics Initialization */
+    // Loads all necessary info to draw subpanel and elements
+    void SubPanel::Init(GLuint uiShader, GLuint textShader)
+    {
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
+
+        glGenBuffers(1, &vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(float), vertices, GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float)*2, 0);
+
+        glGenBuffers(1, &ebo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices, GL_STATIC_DRAW);
+
+        glEnableVertexAttribArray(0);
+
+        glUseProgram(uiShader);
+        glBindVertexArray(vao);
+
+        posLoc = glGetUniformLocation(uiShader, "u_Position");
+        scaleLoc = glGetUniformLocation(uiShader, "u_Scale");
+        colorLoc = glGetUniformLocation(uiShader, "desiredColor");
+
+        glBindVertexArray(0);
+
+        for (auto &e : elements)
+        {
+            if (auto *button = dynamic_cast<Button*>(e.ptr.get()))
+            {
+                button->textShader = textShader;
+                button->Init(uiShader);
+            }
+            else if (auto *dropdown = dynamic_cast<DropdownButton*>(e.ptr.get()))
+            {
+                dropdown->textShader = textShader;
+                dropdown->Init(uiShader);
+            }
+            else if (auto *textArea = dynamic_cast<TextArea*>(e.ptr.get()))
+                textArea->Init(textShader);
+            else
+                e.ptr->Init(uiShader);
+        }
+
+        registeredPanels.push_back(this);
+    }
+
+    /* SubPanel Drawing */
+    // Draws subpanel on screen via OpenGL
+    void SubPanel::Draw(GLuint uiShader, GLuint textShader)
+    {
+        if (!active)
+            return;
+
+        glUseProgram(uiShader);
+        glBindVertexArray(vao);
+
+        const float centerX = 1.0f - margin - size / 2.0f;
+        const float centerY = 1.0f - margin - size / 2.0f;
+
+        glUniform1i(glGetUniformLocation(uiShader, "u_Shape"), 1);
+        glUniform1f(glGetUniformLocation(uiShader, "u_CornerRadius"), size * 0.04f);
+        glUniform2f(posLoc, centerX, centerY);
+        glUniform2f(scaleLoc, size, size);
+        glUniform4f(colorLoc, color[0], color[1], color[2], color[3]);
+
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+
+        for (auto &e : elements)
+        {
+            if (e.active)
+            {
+                if(auto *textArea = dynamic_cast<TextArea*>(e.ptr.get()))
+                    e.ptr->Draw(textShader);
+                else
+                    e.ptr->Draw(uiShader);
+            }
+        }
+
+        glBindVertexArray(0);
+    }
+
+    /* SubPanel Update Function */
+    // Updates everything related to the subpanel
+    void SubPanel::Update(GLuint uiShader, GLuint textShader, GLFWwindow *window)
+    {
+        if (!active)
+            return;
+
+        for (auto &e : elements)
+        {
+            if (e.active)
+                e.ptr->HandleInput(window);
+        }
+
+        Draw(uiShader, textShader);
+    }
+
+    /* SubPanel Slider Value Retrieving */
+    // Called by user; finds given slider and return's its normalized value
+    float SubPanel::GetSliderValue(element slider)
+    {
+        for(int i = 0; i < elements.size(); i++)
+        {
+            if(elements[i].id == slider.id)
+            {
+                if(auto *sliderPtr = dynamic_cast<Slider*>(elements[i].ptr.get()))
+                    return sliderPtr->GetNormalizedValue();
+                else
+                    return -1;
+            }
+        }
+
+        return -1;
+    }
+
+    /* SubPanel Button Status */
+    // Returns if a button is pressed
+    bool SubPanel::IsButtonDown(element button)
+    {
+        for(int i = 0; i < elements.size(); i++)
+        {
+            if(elements[i].id == button.id)
+            {
+                if(auto *buttonPtr = dynamic_cast<Button*>(elements[i].ptr.get()))
+                    return buttonPtr->pressed;
+            }
+        }
+
+        return false;
+    }
+
+    /* SubPanel Button Reset */
+    // Resets a button press after it has been handled
+    void SubPanel::ResetButton(element button)
+    {
+        for(int i = 0; i < elements.size(); i++)
+        {
+            if(elements[i].id == button.id)
+            {
+                if(auto *buttonPtr = dynamic_cast<Button*>(elements[i].ptr.get()))
+                    buttonPtr->pressed = false;
+                return;
+            }
+        }
+    }
+
+    /* SubPanel Dropdown Value */
+    // Gets the currently selected index from a dropdown
+    int SubPanel::GetDropdownSelectedIndex(element dropdown)
+    {
+        for(int i = 0; i < elements.size(); i++)
+        {
+            if(elements[i].id == dropdown.id)
+            {
+                if(auto *dropdownPtr = dynamic_cast<DropdownButton*>(elements[i].ptr.get()))
+                    return dropdownPtr->GetSelectedIndex();
+            }
+        }
+
+        return -1;
+    }
+
+    /* SubPanel Text Update */
+    // Updates the text displayed by a text area
+    void SubPanel::SetText(element textElement, std::string text)
+    {
+        for(int i = 0; i < elements.size(); i++)
+        {
+            if(elements[i].id == textElement.id)
+            {
+                if(auto *textArea = dynamic_cast<TextArea*>(elements[i].ptr.get()))
+                    textArea->SetText(text);
+
+                return;
+            }
+        }
+    }
+
+    /* SubPanel Element Active */
+    // Enables or disables one element from input/rendering
+    void SubPanel::SetElementActive(element elementId, bool active)
+    {
+        for (auto &entry : elements)
+        {
+            if (entry.id == elementId)
+            {
+                entry.active = active;
+                return;
+            }
+        }
+    }
+
+    /* SubPanel Active */
+    // Enables or disables the full subpanel
+    void SubPanel::SetActive(bool active)
+    {
+        this->active = active;
+    }
+
+    /* SubPanel Point Check */
+    // Returns if a normalized point is inside the subpanel bounds or an open dropdown
+    bool SubPanel::ContainsPoint(float x, float y) const
+    {
+        const float x1 = 1.0f - margin;
+        const float x0 = x1 - size;
+        const float y1 = 1.0f - margin;
+        const float y0 = y1 - size;
+
+        if (!active)
+            return false;
+
+        if (x0 <= x && x <= x1 && y0 <= y && y <= y1)
+            return true;
+
+        // Dropdown options can render outside of the subpanel's square.
+        // Treat those option rows as part of the UI so clicking them does not start a world selection.
+        for (const auto &entry : elements)
+        {
+            if (!entry.active)
+                continue;
+
+            auto *dropdown = dynamic_cast<DropdownButton*>(entry.ptr.get());
+            if (!dropdown || !dropdown->open)
+                continue;
+
+            if (dropdown->ContainsPoint(dropdown->pos, x, y))
+                return true;
+
+            for (int i = 0; i < static_cast<int>(dropdown->labels.size()); i++)
+            {
+                if (dropdown->ContainsPoint(dropdown->GetOptionPosition(i), x, y))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    /* Active SubPanel Point Check */
+    // Returns if a normalized point is inside any active registered subpanel
+    bool SubPanel::AnyActivePanelContains(float x, float y)
+    {
+        for (SubPanel *panel : registeredPanels)
+        {
+            if (panel && panel->ContainsPoint(x, y))
+                return true;
+        }
+
+        return false;
     }
 
     #pragma endregion
