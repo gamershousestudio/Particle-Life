@@ -32,9 +32,8 @@ const std::string fontPath = "res/fonts/Uroob-Regular.ttf";
 
 #pragma endregion
 
-// Custom enum for colors
-enum class Color { Red, Green, Blue, Orange, Yellow, Pink, Purple, White, Count };
-const int colorsCount = static_cast<int>(Color::Count);
+// Color palette size and gradient helpers
+constexpr int colorsCount = 50;
 
 // Interactions matrix
 // Can only be as large as the number of possible colors, but can be smaller 
@@ -46,53 +45,157 @@ class Particle : public body::Body
 {
     // Radius of the circle
     float radius;
-    Color color;
+    int colorIndex;
 
     public:
         /* Color lookup */
-        // Returns color's rgb value based on a given color
-        static std::array<float, 4> GetColor(Color name, float a)
+        // Returns color's rgb value based on a given color index and the current variety
+        static std::array<float, 4> GetColor(int colorIndex, float a, int varietyCount = variety)
         {
-            switch(name)
-            {
-                case Color::Red: return {1, 0, 0, a};
-                case Color::Green: return {0, 1, 0, a};
-                case Color::Blue: return {0, 0, 1, a};
-                case Color::Orange: return {1, .647, 0, a};
-                case Color::Yellow: return {1, 1, 0, a};
-                case Color::Pink: return {1, .753, .796, a};
-                case Color::Purple: return {.502, 0, .502, a};
-                case Color::White: return {1, 1, 1, a};
+            const int effectiveVariety = std::max(1, varietyCount);
+            const int clampedIndex = std::clamp(colorIndex, 0, effectiveVariety - 1);
 
-                default: return {0, 0, 0, a};
+            // Calculate rgb from hsv, which is calulated based on the color's index
+            const auto hsvToRgb = [](float h, float s, float v) {
+                const float hue = std::fmod(h, 360.0f);
+                const float c = v * s;
+                const float x = c * (1.0f - std::fabs(std::fmod(hue / 60.0f, 2.0f) - 1.0f));
+                const float m = v - c;
+
+                float r = 0.0f;
+                float g = 0.0f;
+                float b = 0.0f;
+
+                if (hue < 60.0f) {
+                    r = c; g = x; b = 0.0f;
+                } else if (hue < 120.0f) {
+                    r = x; g = c; b = 0.0f;
+                } else if (hue < 180.0f) {
+                    r = 0.0f; g = c; b = x;
+                } else if (hue < 240.0f) {
+                    r = 0.0f; g = x; b = c;
+                } else if (hue < 300.0f) {
+                    r = x; g = 0.0f; b = c;
+                } else {
+                    r = c; g = 0.0f; b = x;
+                }
+
+                return std::array<float, 3>{r + m, g + m, b + m};
+            };
+
+            float hue = 0.0f;
+            if (effectiveVariety == 1)
+            {
+                hue = 0.0f;
             }
+            else if (effectiveVariety == 2)
+            {
+                hue = clampedIndex == 0 ? 0.0f : 180.0f;
+            }
+            else
+            {
+                hue = 360.0f * static_cast<float>(clampedIndex) / static_cast<float>(effectiveVariety);
+            }
+
+            const auto rgb = hsvToRgb(hue, 0.85f, 0.95f);
+            return {rgb[0], rgb[1], rgb[2], a};
         }
 
         /* Color Name Lookup */
-        // Returns color's display name based on a given color
-        static std::string GetColorName(Color name)
+        // Returns color's display name based on a given color index
+        static std::string GetColorName(int colorIndex, int varietyCount = variety)
         {
-            switch(name)
-            {
-                case Color::Red: return "Red";
-                case Color::Green: return "Green";
-                case Color::Blue: return "Blue";
-                case Color::Orange: return "Orange";
-                case Color::Yellow: return "Yellow";
-                case Color::Pink: return "Pink";
-                case Color::Purple: return "Purple";
-                case Color::White: return "White";
+            const int effectiveVariety = std::max(1, varietyCount);
+            const int clampedIndex = std::clamp(colorIndex, 0, effectiveVariety - 1);
 
-                default: return "Unknown";
-            }
+            static const std::array<std::string, 50> hueNames = {
+                // 0°–36°
+                "Red",
+                "Scarlet",
+                "Vermilion",
+                "Orange-Red",
+                "Red-Orange",
+
+                // 36°–72°
+                "Orange",
+                "Tangerine",
+                "Amber",
+                "Golden",
+                "Yellow-Orange",
+
+                // 72°–108°
+                "Yellow",
+                "Lemon",
+                "Chartreuse",
+                "Yellow-Green",
+                "Lime",
+
+                // 108°–144°
+                "Lime Green",
+                "Spring Green",
+                "Green",
+                "Emerald",
+                "Sea Green",
+
+                // 144°–180°
+                "Turquoise",
+                "Teal",
+                "Robin Egg Blue",
+                "Cyan",
+                "Aqua",
+
+                // 180°–216°
+                "Sky Blue",
+                "Azure",
+                "Cerulean",
+                "Dodger Blue",
+                "Blue",
+
+                // 216°–252°
+                "Cobalt",
+                "Sapphire",
+                "Indigo",
+                "Blue-Violet",
+                "Violet",
+
+                // 252°–288°
+                "Purple",
+                "Amethyst",
+                "Orchid",
+                "Medium Orchid",
+                "Magenta",
+
+                // 288°–324°
+                "Fuchsia",
+                "Deep Pink",
+                "Hot Pink",
+                "Rose",
+                "Cerise",
+
+                // 324°–360°
+                "Crimson",
+                "Ruby",
+                "Raspberry",
+                "Cherry",
+                "Red"
+            };
+            
+            if (effectiveVariety == 1)
+                return "Red";
+
+            if (effectiveVariety == 2)
+                return clampedIndex == 0 ? "Red" : "Cyan";
+
+            const int hueIndex = static_cast<int>(std::lround(static_cast<float>(clampedIndex) / static_cast<float>(effectiveVariety - 1) * static_cast<float>(hueNames.size() - 1)));
+            return hueNames[std::clamp(hueIndex, 0, static_cast<int>(hueNames.size() - 1))];
         }
 
         // Particle constructor; takes a gfx::Circle
-        Particle(const gfx::Circle pos, const Color &color)
+        Particle(const gfx::Circle pos, int colorIndex)
         {
             SetPosition(pos.x, pos.y);
             radius = pos.radius;
-            this->color = color;
+            this->colorIndex = colorIndex;
 
             stable = !punishClusters;
         }
@@ -101,12 +204,12 @@ class Particle : public body::Body
         // Returns particle as a gfx::circle
         const gfx::Circle GetProperties()
         {
-            return (gfx::Circle) {(float)position[0], (float)position[1], radius, GetColor(color, 1)};
+            return (gfx::Circle) {(float)position[0], (float)position[1], radius, GetColor(colorIndex, 1)};
         }
 
-        const int getColorID()
+        const int getColorID() const
         {
-            return static_cast<int>(color);
+            return colorIndex;
         }
 };
 
@@ -142,7 +245,7 @@ std::vector<Particle> InitializeParticles(int count, int variety)
             float y = (rand() / (float)RAND_MAX) * 2.0f - 1.0f;
 
             // Adds new particle to list
-            particles.emplace_back(gfx::Circle{x, y, radius, Particle::GetColor(static_cast<Color>(i), 1)}, static_cast<Color>(i));
+            particles.emplace_back(gfx::Circle{x, y, radius, Particle::GetColor(i, 1.0f, variety)}, i);
         }
     }
 
@@ -354,11 +457,16 @@ int main()
     UI::Panel panel{side, length, {1, 1, 1, .5f}};
     auto &world = panel.GetWorld();
 
-    UI::element grid = panel.AddGrid(0, .5, .4, variety, &interactions, true, aspect);
-    UI::element text = panel.AddTextElement(35, 100, {-.99, .95}, fontPath, true, "Time Scale: ", false);
-    UI::element slider = panel.AddSlider(0, .947f, .2f, .04f, timeSpeed);
+    UI::element grid = panel.AddGrid(0, .1f, .7, variety, &interactions, true, aspect);
+    UI::element timeText = panel.AddTextElement(35, 100, {-.99, .95}, fontPath, true, "Time Speed: 10%", false);
+    UI::element timeSlider = panel.AddSlider(.1f, .947f, .2f, .04f, timeSpeed);
 
-    panel.LinkElements(text, slider);
+    UI::element varietyText = panel.AddTextElement(35, 1000, {-.99, .85}, fontPath, true, std::string("Color Variety: ") + std::to_string(variety), false);
+    UI::element varietySlider = panel.AddSlider(.1f, .85f, .2f, .04f, 3.0f/colorsCount);    
+    UI::element rerandomizeButton = panel.AddButton(0, .75f, .16f, .055f, {.35f, .35f, .35f, .9f}, textShader, "Randomize", fontPath, 20);
+
+    panel.LinkElements(timeText, timeSlider);
+    panel.LinkElements(varietyText, varietySlider);
 
     std::vector<std::string> colorNames;
     std::vector<std::array<float, 4>> colorOptions;
@@ -367,9 +475,8 @@ int main()
 
     for (unsigned int i = 0; i < variety; i++)
     {
-        Color currentColor = static_cast<Color>(i);
-        colorNames.push_back(Particle::GetColorName(currentColor));
-        colorOptions.push_back(Particle::GetColor(currentColor, .9f));
+        colorNames.push_back(Particle::GetColorName(static_cast<int>(i), variety));
+        colorOptions.push_back(Particle::GetColor(static_cast<int>(i), .9f, variety));
     }
 
     UI::SubPanel subPanel(.5f, .01f, {.16f, .16f, .18f, .75f});
@@ -385,6 +492,8 @@ int main()
     subPanel.Init(uiShader, textShader);
 
     #pragma endregion
+
+    int lastDropdownVariety = variety;
 
     // Variable for storing delta time
     std::chrono::time_point lastTime = std::chrono::steady_clock::now();
@@ -403,7 +512,37 @@ int main()
     while (!glfwWindowShouldClose(window))
     {
         // Read the current simulation speed from the UI slider
-        timeSpeed = panel.GetSliderValue(slider);
+        const float timeSliderValue = panel.GetSliderValue(timeSlider);
+        timeSpeed = timeSliderValue;
+
+        // Update displayed simulation speed
+        const int timePercent = static_cast<int>(std::lround(timeSliderValue * 100.0f));
+        panel.SetText(timeText, "Time Speed: " + std::to_string(timePercent) + "%");
+
+        // Update variety
+        const int varietyCount = 1 + static_cast<int>(std::lround(panel.GetSliderValue(varietySlider) * static_cast<float>(colorsCount - 1)));
+
+        // Update current displayed color variety
+        variety = static_cast<unsigned int>(std::clamp(varietyCount, 1, colorsCount));
+        panel.SetText(varietyText, "Color Variety: " + std::to_string(variety));
+        panel.SetGridBoxCount(grid, variety);
+
+        if (variety != lastDropdownVariety)
+        {
+            std::vector<std::string> colorNames;
+            std::vector<std::array<float, 4>> colorOptions;
+            colorNames.reserve(variety);
+            colorOptions.reserve(variety);
+
+            for (unsigned int i = 0; i < variety; ++i)
+            {
+                colorNames.push_back(Particle::GetColorName(static_cast<int>(i), variety));
+                colorOptions.push_back(Particle::GetColor(static_cast<int>(i), .9f, variety));
+            }
+
+            subPanel.SetDropdownOptions(colorDropdown, colorNames, colorOptions);
+            lastDropdownVariety = variety;
+        }
 
         // Get current time
         currentTime = std::chrono::steady_clock::now();
@@ -522,6 +661,8 @@ int main()
         world.DisplaySelection(uiShader);
         world.DisplayAreaSelection(uiShader);
 
+        glfwPollEvents();
+
         panel.Update(uiShader, textShader, window);
 
         const bool worldspaceSelected = UI::Events::rightSelectionActive;
@@ -536,9 +677,6 @@ int main()
         subPanel.SetElementActive(colorDropdown, worldspaceSelected);
         subPanel.SetElementActive(deleteButton, particlesSelected);
         subPanel.Update(uiShader, textShader, window);
-
-        // Clears user events buffer
-        glfwPollEvents();
 
         // Do particles need to be selected
         if (UI::Events::selectionRequested)
@@ -643,19 +781,25 @@ int main()
                 if (selectedColorIndex < 0)
                     selectedColorIndex = 0;
 
-                Color selectedColor = static_cast<Color>(selectedColorIndex);
-
                 // Add the requested amount of particles scattered uniformly inside the selected worldspace
                 for (int i = 0; i < particlesToSpawn; i++)
                 {
                     const float x = static_cast<float>(minX + (rand() / (float)RAND_MAX) * (maxX - minX));
                     const float y = static_cast<float>(minY + (rand() / (float)RAND_MAX) * (maxY - minY));
 
-                    particles.emplace_back(gfx::Circle{x, y, radius, Particle::GetColor(selectedColor, 1)}, selectedColor);
+                    particles.emplace_back(gfx::Circle{x, y, radius, Particle::GetColor(selectedColorIndex, 1.0f, variety)}, selectedColorIndex);
                 }
             }
 
             subPanel.ResetButton(spawnButton);
+        }
+
+        // Reupdate interactions and rerender grid when rerandomize button is clicked
+        if (panel.IsButtonDown(rerandomizeButton))
+        {
+            RandomizeInteractions(interactions);
+            panel.SetGridBoxCount(grid, variety);
+            panel.ResetButton(rerandomizeButton);
         }
 
         // Swaps visible and write buffers

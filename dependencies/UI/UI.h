@@ -210,8 +210,11 @@ namespace UI
             float GetSliderValue(element slider); // Gets the given slider's normalized value
             bool IsButtonDown(element button); // Returns the current status of the button
             void ResetButton(element button); // Resets the button state after handling it
+            void SetText(element textElement, std::string text); // Updates a text element
+            void SetGridBoxCount(element grid, unsigned int count); // Updates the visible size of a grid element
             void SetElementActive(element elementId, bool active); // Enables or disables an element from input/rendering
             int GetDropdownSelectedIndex(element dropdown); // Gets currently selected dropdown option
+            void SetDropdownOptions(element dropdown, const std::vector<std::string> &labels, const std::vector<std::array<float, 4>> &optionColors); // Updates a dropdown's visible options
 
             World& GetWorld() { return world; }
             const World& GetWorld() const { return world; }
@@ -314,6 +317,8 @@ namespace UI
         friend class Panel;
         friend class SubPanel;
 
+        static Slider* activeSlider;
+
         float normalizedValue;
         bool isDragging;
 
@@ -386,6 +391,7 @@ namespace UI
         int candidateIndex;
         bool open;
         bool mainCandidate;
+        bool mouseWasDown;
 
         float width;
         float height;
@@ -411,6 +417,8 @@ namespace UI
         void RecalculatePosition(); // Updates position when owner panel moves
         std::array<float, 4> GetOptionPosition(int index) const; // Gets position for dropdown option
         bool ContainsPoint(const std::array<float, 4> &bounds, float x, float y) const; // Checks if a point is inside given bounds
+
+        void SetOptions(const std::vector<std::string> &newLabels, const std::vector<std::array<float, 4>> &newOptionColors); // Updates visible options and colors
 
         int GetSelectedIndex() const { return selectedIndex; } // Returns currently selected option
     };
@@ -465,6 +473,7 @@ namespace UI
             bool IsButtonDown(element button); // Returns the current status of the button
             void ResetButton(element button); // Resets the button state after handling it
             int GetDropdownSelectedIndex(element dropdown); // Gets currently selected dropdown option
+            void SetDropdownOptions(element dropdown, const std::vector<std::string> &labels, const std::vector<std::array<float, 4>> &optionColors); // Updates a dropdown's visible options
             void SetText(element textElement, std::string text); // Updates a text element
             void SetElementActive(element elementId, bool active); // Enables or disables an element from input/rendering
             void SetActive(bool active); // Shows/hides the entire subpanel

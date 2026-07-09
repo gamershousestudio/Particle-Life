@@ -652,9 +652,58 @@ namespace UI
                 // Update events
                 Events::rightMouseDown = false;
                 Events::rightSelectionCurrentPos = {x, y};
+
+                // Update events
+                if (!Events::rightMouseDownStartedOnPanel)
+                {
+                    const double dragX = Events::rightSelectionCurrentPos[0] - Events::rightSelectionStartPos[0];
+                    const double dragY = Events::rightSelectionCurrentPos[1] - Events::rightSelectionStartPos[1];
+                    const bool dragSelection = std::hypot(dragX, dragY) > 0.001;
+
+                    if (!dragSelection)
+                        Events::rightSelectionActive = false;
+                }
             }
         }
 
+    }
+
+    /* Panel Text Update */
+    // Updates the text displayed by a text area
+    void Panel::SetText(element textElement, std::string text)
+    {
+        // Loop through each element
+        for (auto &entry : elements)
+        {
+            // Find the one with the right id
+            if (entry.id == textElement.id)
+            {
+                // If it is a text element, update its text
+                if (auto *textArea = dynamic_cast<TextArea*>(entry.ptr.get()))
+                    textArea->SetText(text);
+
+                return;
+            }
+        }
+    }
+
+    /* Grid Box Count Update */
+    // Updates the visible size of a grid element
+    void Panel::SetGridBoxCount(element grid, unsigned int count)
+    {
+        for (auto &entry : elements)
+        {
+            if (entry.id == grid.id)
+            {
+                if (auto *gridElement = dynamic_cast<Grid*>(entry.ptr.get()))
+                {
+                    gridElement->boxesCount = static_cast<int>(std::max<unsigned int>(1u, count));
+                    gridElement->RecalculateSquares();
+                }
+
+                return;
+            }
+        }
     }
 
     /* Grid Value Fetcher */
@@ -1181,6 +1230,8 @@ namespace UI
     // Draws every square in the grid and colors them based on their values
     void Grid::Draw(GLuint shader)
     {
+        RecalculateSquares();
+
         // What shader and vertex array OpenGL should use to render
         glUseProgram(shader);
         glBindVertexArray(vao);
@@ -1578,6 +1629,8 @@ namespace UI
     // Slider class functions
     #pragma region Slider
 
+    Slider* Slider::activeSlider = nullptr;
+
     /* Default Slider Constructor */
     // Just creates a slider, nothin special about it...
     Slider::Slider(): normalizedValue(0.5f), isDragging(false), length(0.0f), height(0.0f), xOffset(0.0f), yCenter(0.0f), panelCenter(0.0f) {}
@@ -1708,9 +1761,20 @@ namespace UI
         // Left mouse is down
         if (Events::leftMouseDown)
         {
-            // Update dragging if it hasn't been already
-            if (!isDragging && hovered)
+            // Update active slider from Events, and update isDragging from Events
+            if (activeSlider == nullptr && hovered)
+            {
+                activeSlider = this;
                 isDragging = true;
+            }
+            else if (activeSlider == this)
+            {
+                isDragging = true;
+            }
+            else
+            {
+                isDragging = false;
+            }
 
             if (isDragging)
             {
@@ -1726,7 +1790,12 @@ namespace UI
             }
         }
         else
+        {
+            // Reset active slider and isDragging
+            if (activeSlider == this)
+                activeSlider = nullptr;
             isDragging = false;
+        }
     }
 
     #pragma endregion
@@ -1889,12 +1958,12 @@ namespace UI
     /* Default Dropdown Constructor */
     // Initializes everything necessary for an empty dropdown
     DropdownButton::DropdownButton():
-        selectedIndex(0), candidateIndex(-1), open(false), mainCandidate(false), width(0.0f), height(0.0f), xOffset(0.0f), yCenter(0.0f), panelCenter(0.0f), Element() {}
+        selectedIndex(0), candidateIndex(-1), open(false), mainCandidate(false), mouseWasDown(false), width(0.0f), height(0.0f), xOffset(0.0f), yCenter(0.0f), panelCenter(0.0f), Element() {}
 
     /* Full Dropdown Constructor */
     // Creates a new dropdown with all the information needed to draw it
     DropdownButton::DropdownButton(float xOffset, float yCenter, float width, float height, std::vector<std::string> labels, std::vector<std::array<float, 4>> optionColors, GLuint textShader, std::string font, int fontSize, bool autoShrink):
-        labels(std::move(labels)), optionColors(std::move(optionColors)), selectedIndex(0), candidateIndex(-1), open(false), mainCandidate(false), width(width), height(height), xOffset(xOffset), yCenter(yCenter), panelCenter(0.0f),
+        labels(std::move(labels)), optionColors(std::move(optionColors)), selectedIndex(0), candidateIndex(-1), open(false), mainCandidate(false), mouseWasDown(false), width(width), height(height), xOffset(xOffset), yCenter(yCenter), panelCenter(0.0f),
         Element(std::array<float, 4>{0, 0, 0, 0}, std::array<float, 4>{0.7f, 0.7f, 0.7f, 0.9f}), textShader(textShader), textFont(std::move(font)), textFontSize(fontSize), textAutoShrink(autoShrink)
     {
         // If no labels were given, add a fallback option so drawing and selection always have a valid index
@@ -1989,9 +2058,16 @@ namespace UI
     // Returns where the indexed option should render when the dropdown is open
     std::array<float, 4> DropdownButton::GetOptionPosition(int index) const
     {
-        const float optionTop = pos[1] - height * index;
+        constexpr int optionColumns = 2;
+        const int rowsPerColumn = std::max(1, static_cast<int>(std::ceil(static_cast<float>(labels.size()) / optionColumns)));
+        const int row = index % rowsPerColumn;
+        const int col = index / rowsPerColumn;
+        const float optionWidth = width * 0.5f;
+        const float optionTop = pos[1] - height * row;
         const float optionBottom = optionTop - height;
-        return {pos[0], optionBottom, pos[2], optionTop};
+        const float optionLeft = pos[0] + col * optionWidth;
+        const float optionRight = optionLeft + optionWidth;
+        return {optionLeft, optionBottom, optionRight, optionTop};
     }
 
     /* Bounds Check */
@@ -2056,6 +2132,43 @@ namespace UI
         }
     }
 
+    /* Update Dropdown Options */
+    // Configure the dropdown options from user input
+    void DropdownButton::SetOptions(const std::vector<std::string> &newLabels, const std::vector<std::array<float, 4>> &newOptionColors)
+    {
+        // Ensure labels and colors are not the same
+        const bool sameLabels = labels.size() == newLabels.size() && std::equal(labels.begin(), labels.end(), newLabels.begin());
+        const bool sameColors = optionColors.size() == newOptionColors.size() && std::equal(optionColors.begin(), optionColors.end(), newOptionColors.begin());
+        
+        if (sameLabels && sameColors)
+            return;
+
+        // Update labels / colors
+        labels = newLabels;
+        optionColors = newOptionColors;
+
+        // Filter if they don't exist
+        if (labels.empty())
+            labels.emplace_back("None");
+
+        // Default color
+        while (optionColors.size() < labels.size())
+            optionColors.push_back({0.7f, 0.7f, 0.7f, 0.9f});
+
+        // Ensure both are the same size
+        optionColors.resize(labels.size());
+
+        if (selectedIndex < 0 || selectedIndex >= static_cast<int>(labels.size()))
+            selectedIndex = 0;
+
+        // Update everything
+        candidateIndex = -1;
+        mainCandidate = false;
+        optionTextOverlays.clear();
+        InitTextOverlays();
+        RecalculatePosition();
+    }
+
     /* Dropdown Input Handling */
     // Updates hover/open/selection state for the dropdown based on the current cursor and mouse state
     void DropdownButton::HandleInput(GLFWwindow *window)
@@ -2068,6 +2181,9 @@ namespace UI
 
         const float x = static_cast<float>((cursorX / windowWidth) * 2.0 - 1.0);
         const float y = static_cast<float>(-((cursorY / windowHeight) * 2.0 - 1.0));
+        const bool mousePressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+        const bool mouseClicked = mousePressed && !mouseWasDown;
+        mouseWasDown = mousePressed;
 
         const bool mainHovered = ContainsPoint(pos, x, y);
         int hoveredOption = -1;
@@ -2084,22 +2200,27 @@ namespace UI
             }
         }
 
-        const bool wasMainCandidate = mainCandidate;
-        const int previousCandidateIndex = candidateIndex;
+        mainCandidate = mainHovered && mousePressed;
+        candidateIndex = (hoveredOption >= 0) ? hoveredOption : -1;
 
-        mainCandidate = mainHovered && Events::leftMouseDown;
-        candidateIndex = (hoveredOption >= 0 && Events::leftMouseDown) ? hoveredOption : -1;
-
-        if (!Events::leftMouseDown && wasMainCandidate && mainHovered)
+        if (!open)
         {
-            open = !open;
+            if (mouseClicked && mainHovered)
+            {
+                open = true;
+                RecalculatePosition();
+            }
             return;
         }
 
-        if (!Events::leftMouseDown && previousCandidateIndex >= 0)
+        if (mouseClicked)
         {
-            if (hoveredOption == previousCandidateIndex)
-                selectedIndex = previousCandidateIndex;
+            if (hoveredOption >= 0 && hoveredOption < static_cast<int>(labels.size()))
+            {
+                selectedIndex = hoveredOption;
+                if (selectedTextOverlay)
+                    selectedTextOverlay->SetText(labels[selectedIndex]);
+            }
 
             open = false;
             RecalculatePosition();
@@ -2385,6 +2506,21 @@ namespace UI
         }
 
         return -1;
+    }
+
+    /* Update Dropdown */
+    // Goes through each element -> finds dropdown box -> updates its labels and option colors
+    void SubPanel::SetDropdownOptions(element dropdown, const std::vector<std::string> &labels, const std::vector<std::array<float, 4>> &optionColors)
+    {
+        for (int i = 0; i < static_cast<int>(elements.size()); ++i)
+        {
+            if (elements[i].id == dropdown.id)
+            {
+                if (auto *dropdownPtr = dynamic_cast<DropdownButton*>(elements[i].ptr.get()))
+                    dropdownPtr->SetOptions(labels, optionColors);
+                return;
+            }
+        }
     }
 
     /* SubPanel Text Update */
