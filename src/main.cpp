@@ -415,7 +415,7 @@ int main()
 
     // Initializes new CircleRenderer object for rendering particles
     gfx::CircleRenderer renderer;
-    renderer.CreateBuffer(worldShader, 16);
+    renderer.CreateBuffer(worldShader, 6);
 
     // Spawns particles at random normalized positions and adds them to particle list
     std::vector<Particle> particles = InitializeParticles(count, variety);

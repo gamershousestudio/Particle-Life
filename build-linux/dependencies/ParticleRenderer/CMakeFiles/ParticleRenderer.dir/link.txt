@@ -1,0 +1,2 @@
+/usr/bin/ar qc libParticleRenderer.a CMakeFiles/ParticleRenderer.dir/particleRenderer.cpp.o
+/usr/bin/ranlib libParticleRenderer.a

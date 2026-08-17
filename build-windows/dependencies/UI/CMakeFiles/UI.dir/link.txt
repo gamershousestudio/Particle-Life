@@ -1,0 +1,2 @@
+/usr/bin/x86_64-w64-mingw32-ar qc libUI.a CMakeFiles/UI.dir/UI.cpp.obj
+/usr/bin/x86_64-w64-mingw32-ranlib libUI.a

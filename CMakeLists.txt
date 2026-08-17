@@ -5,61 +5,16 @@ project(ParticleLife)
 # C++ version
 set(CMAKE_CXX_STANDARD 23)
 
-# Gets packages to be used for project
-find_package(OpenGL REQUIRED)
-find_package(GLEW REQUIRED)
-find_package(glfw3 REQUIRED)
+# Define Body library here
+add_library(Body dependencies/Body/body.cpp)
+target_include_directories(Body PUBLIC dependencies/Body)
 
-# Adds body library to project
-add_library(Body
-    dependencies/Body/body.cpp
-)
-
-# Includes dependencies/Body as one of the root directories
-target_include_directories(Body PUBLIC
-    dependencies/Body
-)
-
-# Adds ParticleRenderer library to this project
-add_library(ParticleRenderer
-    dependencies/ParticleRenderer/particleRenderer.cpp
-)
-
-# Includes dependencies/ParticleRenderer as one of the root directories
-target_include_directories(ParticleRenderer PUBLIC
-    dependencies/ParticleRenderer
-)
-
-# Adds UI library to this project
-add_library(UI
-    dependencies/UI/UI.cpp
-)
-
-# So that UI can use Freetype
-find_package(Freetype REQUIRED)
-
-target_link_libraries(UI PUBLIC
-    Freetype::Freetype
-)
-
-# Includes dependencies/UI as one of the root link_directories
-target_include_directories(UI PUBLIC
-    dependencies/UI
-    dependencies/Body
-)
-
-# Links ParticleRenderer and Body
-target_link_libraries(ParticleRenderer PUBLIC Body)
+# Include the sub-projects
+add_subdirectory(dependencies/ParticleRenderer)
+add_subdirectory(dependencies/UI)
 
 # What files are compiled during build
-add_executable(ParticleLife
-    src/main.cpp
-)
-
-# Includes src as one of the root directories
-target_include_directories(ParticleLife PRIVATE
-    src
-)
+add_executable(ParticleLife src/main.cpp)
 
 # Copy shaders to build
 add_custom_command(TARGET ParticleLife POST_BUILD
@@ -68,13 +23,58 @@ add_custom_command(TARGET ParticleLife POST_BUILD
     "${CMAKE_BINARY_DIR}/res"
 )
 
+# SINGLE CONSOLIDATED INCLUDE AND LINK BLOCK
+if(WIN32)
+    # FORCE the compiler to bake libgcc, libstdc++, and winpthreads directly inside your .exe
+    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -static")
 
-# Tells CMake that these external libraries will be used in project
-target_link_libraries(ParticleLife PRIVATE
-    ParticleRenderer
-    Body
-    UI
-    glfw
-    OpenGL::GL
-    GLEW::GLEW
-)
+    # Your existing Windows configuration follows completely untouched
+    target_include_directories(ParticleLife PRIVATE 
+        src
+        dependencies
+        dependencies/Body
+        dependencies/ParticleRenderer
+        dependencies/UI
+        thirdparty
+    )
+    
+    target_compile_definitions(ParticleLife PRIVATE GLFW_DLL)
+    target_compile_definitions(ParticleRenderer PRIVATE GLFW_DLL)
+    target_compile_definitions(UI PRIVATE GLFW_DLL)
+    
+    target_link_libraries(ParticleLife PRIVATE
+        ParticleRenderer
+        Body
+        UI
+        "${CMAKE_SOURCE_DIR}/thirdparty/glfw3.dll"
+        "${CMAKE_SOURCE_DIR}/thirdparty/glew32.dll"
+        "${CMAKE_SOURCE_DIR}/thirdparty/freetype.dll"
+        opengl32
+        gdi32
+    )
+else()
+    # Appends all paths for your native Linux/Ubuntu build
+    target_include_directories(ParticleLife PRIVATE 
+        src
+        dependencies
+        dependencies/Body
+        dependencies/ParticleRenderer
+        dependencies/UI
+    )
+
+    find_package(OpenGL REQUIRED)
+    find_package(GLEW REQUIRED)
+    find_package(glfw3 REQUIRED)
+    find_package(Freetype REQUIRED) # Ensure Freetype lookup is active
+
+    # Link everything to the main executable (Adding Freetype::Freetype fixes your include error)
+    target_link_libraries(ParticleLife PRIVATE
+        ParticleRenderer
+        Body
+        UI
+        glfw
+        OpenGL::GL
+        GLEW::GLEW
+        Freetype::Freetype
+    )
+endif()
