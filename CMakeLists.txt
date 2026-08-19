@@ -5,6 +5,16 @@ project(ParticleLife)
 # C++ version
 set(CMAKE_CXX_STANDARD 23)
 
+# Option to Enable AddressSanitizer builds for debugging memory issues.
+#
+# Usage: Configure the project with `-DENABLE_ASAN=ON` to add compile and
+# link flags that enable AddressSanitizer (ASan) and UndefinedBehaviorSanitizer
+# (UBSan) for the `ParticleLife` target. This is intended for debugging and
+# automated test runs — leave it OFF for production builds to avoid the
+# performance and binary-size impact of sanitizers.
+option(ENABLE_ASAN "Build with AddressSanitizer enabled" OFF)
+
+
 # Define Body library here
 add_library(Body dependencies/Body/body.cpp)
 target_include_directories(Body PUBLIC dependencies/Body)
@@ -12,9 +22,15 @@ target_include_directories(Body PUBLIC dependencies/Body)
 # Include the sub-projects
 add_subdirectory(dependencies/ParticleRenderer)
 add_subdirectory(dependencies/UI)
+add_subdirectory(dependencies/ParticleCompute)
 
 # What files are compiled during build
-add_executable(ParticleLife src/main.cpp)
+add_executable(ParticleLife src/main.cpp
+    src/RunLoop.cpp src/RunLoop.cpp)
+
+# Small static library containing shared simulation config globals
+add_library(SimConfigLib STATIC src/SimConfig.cpp)
+target_include_directories(SimConfigLib PUBLIC src)
 
 # Copy shaders to build
 add_custom_command(TARGET ParticleLife POST_BUILD
@@ -60,6 +76,7 @@ else()
         dependencies/Body
         dependencies/ParticleRenderer
         dependencies/UI
+        dependencies/ParticleCompute
     )
 
     find_package(OpenGL REQUIRED)
@@ -72,9 +89,35 @@ else()
         ParticleRenderer
         Body
         UI
+        ParticleCompute
         glfw
         OpenGL::GL
         GLEW::GLEW
         Freetype::Freetype
     )
+    target_link_libraries(ParticleLife PRIVATE SimConfigLib)
+endif()
+
+if(ENABLE_ASAN)
+    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        message(STATUS "Enabling AddressSanitizer for ParticleLife")
+        target_compile_options(ParticleLife PRIVATE -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(ParticleLife PRIVATE -fsanitize=address,undefined)
+    else()
+        message(WARNING "ENABLE_ASAN is set but compiler does not support GNU/Clang sanitizer options")
+    endif()
+endif()
+
+# Add a small test binary to reproduce spawn behavior and run it with sanitizers
+add_executable(spawn_test tests/spawn_test.cpp)
+target_include_directories(spawn_test PRIVATE
+    src
+    dependencies
+    dependencies/Body
+    dependencies/ParticleRenderer
+)
+target_link_libraries(spawn_test PRIVATE Body ParticleRenderer SimConfigLib)
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(spawn_test PRIVATE -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer)
+    target_link_options(spawn_test PRIVATE -fsanitize=address,undefined)
 endif()

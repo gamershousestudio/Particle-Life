@@ -88,7 +88,7 @@ namespace UI
 
     /* Selection Renderer */
     // Renders little boxes around particles within the selected area
-    void World::DisplaySelection(GLuint shader)
+    void World::DisplaySelection(GLuint shader, const body::Body *bodies, size_t count)
     {
         // If nothing is selected, don't display anything
         if (selected.empty())
@@ -101,19 +101,14 @@ namespace UI
         // How many stuff to loop for
         const size_t selectionCount = std::min(selected.size(), selectedMarkerSizes.size());
 
-        // Loop through each particle
+        // Loop through each selected index
         for (size_t i = 0; i < selectionCount; ++i)
         {
-            // Get current particle to view
-            void *entry = selected[i];
-
-            // If particle is null, move on
-            if (!entry)
+            int idx = selected[i];
+            if (idx < 0 || static_cast<size_t>(idx) >= count) // out-of-range selection
                 continue;
 
-            // Get the body
-            body::Body *body = static_cast<body::Body*>(entry);
-            const auto &position = body->GetPosition();
+            const auto &position = bodies[idx].GetPosition();
 
             // How big each box should be
             const float markerRadius = std::max(0.001f, selectedMarkerSizes[i]);
@@ -130,6 +125,37 @@ namespace UI
             glUniform4f(colorLoc, color[0], color[1], color[2], color[3]);
 
             // Draw square
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+        }
+
+        glBindVertexArray(0);
+    }
+
+    // Renders selection boxes using SoA position buffers to avoid syncing AoS
+    void World::DisplaySelectionSoA(GLuint shader, const std::vector<float> &posX, const std::vector<float> &posY, size_t count)
+    {
+        if (selected.empty()) return;
+        glUseProgram(shader);
+        glBindVertexArray(vao);
+
+        const size_t selectionCount = std::min(selected.size(), selectedMarkerSizes.size());
+        for (size_t i = 0; i < selectionCount; ++i)
+        {
+            int idx = selected[i];
+            if (idx < 0 || static_cast<size_t>(idx) >= count) continue;
+
+            float px = posX[idx];
+            float py = posY[idx];
+
+            const float markerRadius = std::max(0.001f, selectedMarkerSizes[i]);
+            const float boxSize = markerRadius * 2.0f;
+            const float boxWidth = aspect > 0.0f ? boxSize / aspect : boxSize;
+
+            glUniform1i(glGetUniformLocation(shader, "u_Shape"), 0);
+            glUniform1f(glGetUniformLocation(shader, "u_CornerRadius"), 0.0f);
+            glUniform2f(posLoc, px, py);
+            glUniform2f(scaleLoc, boxWidth, boxSize);
+            glUniform4f(colorLoc, color[0], color[1], color[2], color[3]);
             glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
         }
 

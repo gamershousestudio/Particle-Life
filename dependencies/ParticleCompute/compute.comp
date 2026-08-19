@@ -1,0 +1,103 @@
+#version 430
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) buffer Pos { vec2 pos[]; };
+layout(std430, binding = 1) buffer Vel { vec2 vel[]; };
+layout(std430, binding = 2) buffer ColorIDs { int cids[]; };
+layout(std430, binding = 3) buffer Offsets { int offsets[]; };
+layout(std430, binding = 4) buffer Flat { int flatIdx[]; };
+layout(std430, binding = 5) buffer Interactions { float inter[]; };
+
+uniform int u_particleCount;
+uniform int u_gridCols;
+uniform int u_gridRows;
+uniform int u_maxCellOffset;
+uniform float u_interactRange;
+uniform float u_repelRange;
+uniform float u_interactForce;
+uniform float u_repelForce;
+uniform float u_simDelta;
+uniform int u_colorsCount;
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid >= uint(u_particleCount)) return;
+    int i = int(gid);
+
+    vec2 p = pos[i];
+    vec2 v = vel[i];
+    int cid_i = cids[i];
+
+    float interactRange = u_interactRange;
+    float repelRange = u_repelRange;
+    float simDelta = u_simDelta;
+    float interactRangeSq = interactRange*interactRange;
+    float repelRangeSq = repelRange*repelRange;
+
+    int cellX = int(((p.x + 1.0) * 0.5) * float(u_gridCols));
+    int cellY = int(((p.y + 1.0) * 0.5) * float(u_gridRows));
+    cellX = clamp(cellX, 0, u_gridCols - 1);
+    cellY = clamp(cellY, 0, u_gridRows - 1);
+
+    for (int oy = -u_maxCellOffset; oy <= u_maxCellOffset; ++oy) {
+        int ny = cellY + oy;
+        if (ny < 0 || ny >= u_gridRows) continue;
+        for (int ox = -u_maxCellOffset; ox <= u_maxCellOffset; ++ox) {
+            int nx = cellX + ox;
+            if (nx < 0 || nx >= u_gridCols) continue;
+            int neighborCell = ny * u_gridCols + nx;
+            int start = offsets[neighborCell];
+            int end = offsets[neighborCell + 1];
+                for (int idx = start; idx < end; ++idx) {
+                int j = flatIdx[idx];
+                if (j == i) continue;
+                vec2 pj = pos[j];
+                float dx = pj.x - p.x;
+                if (dx > 1.0) dx -= 2.0; else if (dx < -1.0) dx += 2.0;
+                float dy = pj.y - p.y;
+                if (dy > 1.0) dy -= 2.0; else if (dy < -1.0) dy += 2.0;
+                float d2 = dx*dx + dy*dy;
+                if (d2 < 1e-8) continue;
+                if (d2 < repelRangeSq) {
+                    float d = sqrt(d2);
+                    float strength = (repelRange - d) / repelRange;
+                    strength = strength * strength;
+                    float impulse = strength * u_repelForce * simDelta;
+                    float maxImp = 0.10 * simDelta;
+                    if (impulse > maxImp) impulse = maxImp;
+                    v -= vec2(dx, dy) * impulse;
+                } else if (d2 < interactRangeSq) {
+                    float d = sqrt(d2);
+                    float normalized = (interactRange - d) / interactRange;
+                    float strength = normalized * normalized;
+                    int cid_j = cids[j];
+                    float factor = u_interactForce * inter[cid_i*u_colorsCount + cid_j];
+                    float impulse = strength * factor * simDelta;
+                    float maxImp = 0.15 * simDelta;
+                    if (impulse > maxImp) impulse = maxImp;
+                    v += vec2(dx, dy) * impulse;
+                }
+            }
+        }
+    }
+
+    // Damping & cap
+    float speedSq = dot(v, v);
+    if (speedSq > 0.0) {
+        float speed = sqrt(speedSq);
+        float drag = 1.0 - (0.8 * speed * simDelta);
+        if (drag < 0.0) drag = 0.0;
+        v *= drag;
+    }
+    float maxV = 1.0;
+    float curSpeed = length(v);
+    if (curSpeed > maxV) v = v * (maxV / curSpeed);
+
+    // Integrate and wrap
+    p += v * simDelta;
+    if (p.x < -1.0) p.x += 2.0; else if (p.x > 1.0) p.x -= 2.0;
+    if (p.y < -1.0) p.y += 2.0; else if (p.y > 1.0) p.y -= 2.0;
+
+    pos[i] = p;
+    vel[i] = v;
+}

@@ -138,13 +138,14 @@ namespace UI
             std::array<float, 4> areaSelectionColor = {0.15f, 0.35f, 1.0f, 0.25f};
 
         public:
-            std::vector<void*> selected;
+            std::vector<int> selected;
             std::vector<float> selectedMarkerSizes;
 
             World(); // Default world constructor
             void LeftDrag(GLFWwindow *window, GLuint shader); // Drag callback
-            void DisplaySelection(GLuint shader); // Render little boxes around selected particles
+            void DisplaySelection(GLuint shader, const body::Body *bodies, size_t count); // Render little boxes around selected particles
             void DisplayAreaSelection(GLuint shader); // Render the persistent right-click area selection rectangle
+            void DisplaySelectionSoA(GLuint shader, const std::vector<float> &posX, const std::vector<float> &posY, size_t count); // Render boxes using SoA arrays
 
     };
 

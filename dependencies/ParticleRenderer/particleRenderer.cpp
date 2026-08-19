@@ -144,17 +144,29 @@ namespace gfx
 
         glBindBuffer(GL_ARRAY_BUFFER, instanceVbo);
         size_t byteSize = instanceData.size() * sizeof(float);
-        if (byteSize > instanceBufferSize)
+
+        // Orphan the buffer each frame before updating to avoid GPU sync stalls.
+        // Using GL_STREAM_DRAW and calling glBufferData with NULL tells the driver
+        // we don't need the previous contents; then upload the new data with glBufferSubData.
+        if (byteSize == 0)
         {
-            // If the stored buffer is too small, allocate a larger one.
-            // This happens only when the number of particles grows beyond the previous maximum.
-            glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(byteSize), instanceData.data(), GL_DYNAMIC_DRAW);
-            instanceBufferSize = byteSize;
+            // Nothing to upload
         }
         else
         {
-            // If the buffer already has enough space, update only the used portion.
-            // This avoids reallocating the GPU buffer every frame.
+            if (byteSize > instanceBufferSize)
+            {
+                // Grow buffer: allocate new storage (orphan old storage implicitly)
+                glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(byteSize), nullptr, GL_STREAM_DRAW);
+                instanceBufferSize = byteSize;
+            }
+            else
+            {
+                // Orphan current storage to avoid driver stalls, then update used portion
+                glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(instanceBufferSize), nullptr, GL_STREAM_DRAW);
+            }
+
+            // Upload the instance data into the (new/orphaned) buffer
             glBufferSubData(GL_ARRAY_BUFFER, 0, static_cast<GLsizeiptr>(byteSize), instanceData.data());
         }
 

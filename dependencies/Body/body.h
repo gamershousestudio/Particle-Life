@@ -33,6 +33,9 @@ namespace body
             void SetPosition(const float &x, const float &y); // Sets body's position
             [[nodiscard]] const std::array<float, 2> &GetPosition() const; // Returns body's position
 
+            // Apply an immediate velocity impulse (used by optimized interaction loop)
+            void ApplyImpulse(const float &ix, const float &iy);
+
             void Damp(const float &factor);  // Applies damping to velocity
     };
 

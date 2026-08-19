@@ -18,9 +18,11 @@
 
 #include <cstdlib>
 #include <ctime>
+#include <cstring>
 
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 
 #include <chrono>
 
@@ -28,8 +30,14 @@
 
 #include <random>
 
+#include <thread>
+#include <execution>
+
 #include "particleRenderer.h"  
 #include "body.h"
 #include "UI.h"
+
+#include "ParticleCompute/ParticleCompute.h"
+#include "ParticleCompute/ParticleSim.h"
 
 #endif

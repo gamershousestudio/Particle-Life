@@ -215,6 +215,13 @@ namespace body
         velocity[1] -= factor * sqrt(velocity[1]);
     }
 
+    /* Apply an immediate velocity impulse */
+    void Body::ApplyImpulse(const float &ix, const float &iy)
+    {
+        velocity[0] += ix;
+        velocity[1] += iy;
+    }
+
     #pragma endregion
 
     // Any functions related to Body
