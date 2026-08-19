@@ -46,6 +46,14 @@ void RunMainLoop(GLFWwindow* window,
                  UI::element varietyText,
                  UI::element varietySlider,
                  UI::element rerandomizeButton,
+                 UI::element interactForceSlider,
+                 UI::element repelForceSlider,
+                 UI::element interactRangeSlider,
+                 UI::element repelRangeSlider,
+                 UI::element interactForceText,
+                 UI::element repelForceText,
+                 UI::element interactRangeText,
+                 UI::element repelRangeText,
                  UI::element amountText,
                  UI::element amountSlider,
                  UI::element spawnButton,
@@ -99,10 +107,25 @@ void RunMainLoop(GLFWwindow* window,
     while (!glfwWindowShouldClose(window))
     {
         // --- UI Updates ---
-        const float timeSliderValue = panel.GetSliderValue(timeSlider);
-        timeSpeed = timeSliderValue;
-        const int timePercent = static_cast<int>(std::lround(timeSliderValue * 100.0f));
+        timeSpeed = panel.GetSliderValue(timeSlider);
+        const int timePercent = std::llround(timeSpeed * 100.0f);
         panel.SetText(timeText, std::string("Time Speed: ") + std::to_string(timePercent) + "%");
+
+        const float interactForce = panel.GetSliderValue(interactForceSlider);
+        const int interactForcePercent = std::llround(interactForce * 100.0f);
+        panel.SetText(interactForceText, std::string("Interact Force: " + std::to_string(interactForcePercent) + "%"));
+
+        const float repelForce = panel.GetSliderValue(repelForceSlider);
+        const int repelForcePercent = std::llround(repelForce * 100.0f);
+        panel.SetText(repelForceText, std::string("Repel Force: " + std::to_string(repelForcePercent) + "%"));
+
+        const float interactRange = panel.GetSliderValue(interactRangeSlider);
+        const int interactRangePercent = std::llround(interactRange * 100.0f);
+        panel.SetText(interactRangeText, std::string("Interact Range: " + std::to_string(interactRangePercent) + "%"));
+
+        const float repelRange = panel.GetSliderValue(repelRangeSlider);
+        const int repelRangePercent = std::llround(repelRange * 100.0f);
+        panel.SetText(repelRangeText, std::string("Repel Range: " + std::to_string(repelRangePercent) + "%"));
 
         const int varietyCount = 1 + static_cast<int>(std::lround(panel.GetSliderValue(varietySlider) * static_cast<float>(colorsCount - 1)));
         variety = static_cast<unsigned int>(std::clamp(varietyCount, 1, colorsCount));

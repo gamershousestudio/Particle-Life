@@ -1,3 +1,0 @@
-/usr/bin/cmake -E rm -f CMakeFiles/ParticleLife.dir/objects.a
-/usr/bin/x86_64-w64-mingw32-ar qc CMakeFiles/ParticleLife.dir/objects.a @CMakeFiles/ParticleLife.dir/objects1.rsp
-/usr/bin/x86_64-w64-mingw32-g++ -O3 -DNDEBUG -Wl,--whole-archive CMakeFiles/ParticleLife.dir/objects.a -Wl,--no-whole-archive -o ParticleLife.exe -Wl,--out-implib,libParticleLife.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/ParticleLife.dir/linklibs.rsp

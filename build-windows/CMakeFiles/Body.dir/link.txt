@@ -1,2 +1,0 @@
-/usr/bin/x86_64-w64-mingw32-ar qc libBody.a CMakeFiles/Body.dir/dependencies/Body/body.cpp.obj
-/usr/bin/x86_64-w64-mingw32-ranlib libBody.a

@@ -1,1 +1,0 @@
- dependencies/ParticleRenderer/libParticleRenderer.a libBody.a dependencies/UI/libUI.a ../thirdparty/glfw3.dll ../thirdparty/glew32.dll ../thirdparty/freetype.dll -lopengl32 -lgdi32 -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 

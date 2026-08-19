@@ -9,11 +9,15 @@ extern const std::array<int,2> aspectRatio;
 
 extern const double clusterFactor;
 
-extern const double interactRange;
-extern const double repelRange;
+extern const double interactRangeMultiplier;
+extern const double repelRangeMultiplier;
+extern double interactRange;
+extern double repelRange;
 
-extern const double interactForce;
-extern const double repelForce;
+extern const double interactForceMultiplier;
+extern const double repelForceMultiplier;
+extern double interactForce;
+extern double repelForce;
 
 extern const double timeMultiplier;
 extern double timeSpeed;

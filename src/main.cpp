@@ -140,12 +140,27 @@ int main(int argc, char** argv)
 
     // UI setup
     UI::Panel panel{side, length, {1,1,1,.5f}};
+
     UI::element grid = panel.AddGrid(0, .3f, .7f, variety, &interactions, true, aspect);
+
     UI::element timeText = panel.AddTextElement(35, 100, {-.99f, .95f}, fontPath, true, "Time Speed: 10%", false);
     UI::element timeSlider = panel.AddSlider(.1f, .947f, .2f, .04f, timeSpeed);
+
     UI::element varietyText = panel.AddTextElement(35, 1000, {-.99, .85}, fontPath, true, std::string("Color Variety: ") + std::to_string(variety), false);
     UI::element varietySlider = panel.AddSlider(.1f, .85f, .2f, .04f, 3.0f/colorsCount);
+
     UI::element rerandomizeButton = panel.AddButton(0, .7f, .16f, .055f, {.35f, .35f, .35f, .9f}, textShader, "Randomize", fontPath, 20);
+
+    UI::element interactForceSlider = panel.AddSlider(.1f, -.2f, .2f, .04f, interactForce);
+    UI::element repelForceSlider = panel.AddSlider(.1f, -.3f, .2f, .04f, repelForce);
+    UI::element interactRangeSlider = panel.AddSlider(.1f, -.4f, .2f, .04f, interactRange);
+    UI::element repelRangeSlider = panel.AddSlider(.1f, -.5f, .2f, .04f, repelRange);
+
+    UI::element interactForceText = panel.AddTextElement(35, 1000, {-.99, -.2 + .003}, fontPath, true, std::string("Interact Force: ") + std::to_string(std::llround(interactForce*100)), false);
+    UI::element repelForceText = panel.AddTextElement(35, 1000, {-.99, -.3 + .003}, fontPath, true, std::string("Repel Force: ") + std::to_string(std::llround(repelForce*100)), false);
+    UI::element interactRangeText = panel.AddTextElement(35, 1000, {-.99, -.4 + .003}, fontPath, true, std::string("Interact Range: ") + std::to_string(std::llround(interactRange*100)), false);
+    UI::element repelRangeText = panel.AddTextElement(35, 1000, {-.99, -.5 + .003}, fontPath, true, std::string("Repel Range: ") + std::to_string(std::llround(repelRange*100)), false);
+
     panel.LinkElements(timeText, timeSlider);
     panel.LinkElements(varietyText, varietySlider);
 
@@ -168,7 +183,12 @@ int main(int argc, char** argv)
     bool gpuAvailable = false;
     try { gpuAvailable = compute.Init((projectRoot / "dependencies/ParticleCompute/compute.comp").string()); } catch (...) { gpuAvailable = false; }
 
-    RunMainLoop(window, panel, subPanel, grid, timeText, timeSlider, varietyText, varietySlider, rerandomizeButton, amountText, amountSlider, spawnButton, deleteButton, colorDropdown, renderer, worldShader, uiShader, textShader, particles, posX, posY, velX, velY, colorIDs, circles, aspect, gpuAvailable ? &compute : nullptr, gpuAvailable);
+    RunMainLoop(
+        window, panel, subPanel, grid, timeText, timeSlider, varietyText, varietySlider, rerandomizeButton, interactForceSlider, 
+        repelForceSlider, interactRangeSlider, repelRangeSlider, interactForceText, repelForceText, interactRangeText, repelRangeText, 
+        amountText, amountSlider, spawnButton, deleteButton, colorDropdown, renderer, worldShader, uiShader, textShader, particles, 
+        posX, posY, velX, velY, colorIDs, circles, aspect, gpuAvailable ? &compute : nullptr, gpuAvailable
+    );
 
     return 0;
 }

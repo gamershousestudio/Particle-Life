@@ -7,11 +7,15 @@ const std::array<int,2> aspectRatio = {(int)(1600*1), (int)(900*1)}; // Width, h
 
 const double clusterFactor = 1; // Increases motivation to form clusters
 
-const double interactRange = .03 * clusterFactor;
-const double repelRange = .013 * clusterFactor;
+const double interactRangeMultiplier = .03 * clusterFactor;
+const double repelRangeMultiplier = .013 * clusterFactor;
+double interactRange = .5;
+double repelRange = .5;
 
-const double interactForce = 50;
-const double repelForce = 5;
+const double interactForceMultiplier = 50;
+const double repelForceMultiplier = 5;
+double interactForce = .3;
+double repelForce = .3;
 
 const double timeMultiplier = 1;
 double timeSpeed = .1;
