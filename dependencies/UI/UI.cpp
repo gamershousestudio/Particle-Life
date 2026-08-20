@@ -1395,36 +1395,46 @@ namespace UI
     void TextArea::LoadFont()
     {
         // Initialization of freetype
-        auto error = FT_Init_FreeType( &library ); // Creates a new library
+        auto error = FT_Init_FreeType(&library); // Creates a new library
 
-        if(error) // FT_Init_FreeType returns error code, or 0 if there was no error
+        if (error) // FT_Init_FreeType returns error code, or 0 if there was no error
         {
             std::cout << "ERROR: Freetype failed to initialize." << std::endl;
+            return;
         }
 
         // Initialization of font
-        error = FT_New_Face( library, // Library to be initialized under; FT_New_Face() initializes a new font("face")
-                     font.c_str(), // Path to font
-                     0, // What face to load
-                     &face ); // What face to set it to
+        error = FT_New_Face(
+            library,
+            font.c_str(),
+            0,
+            &face
+        );
 
         // Error stuff for erroring
         if (error == FT_Err_Unknown_File_Format) // Format could not be read
         {
             std::cout << "ERROR: Font file format could not be read." << std::endl;
+            FT_Done_FreeType(library);
+            return;
         }
-        else if(error) // Some other kind of error
+        else if (error) // Some other kind of error
         {
             std::cout << "ERROR: Issue accessing font file, please verify its existence and accessability" << std::endl;
+            FT_Done_FreeType(library);
+            return;
         }
 
         // Sets the font height in pixels
-        FT_Set_Pixel_Sizes(face, 0, fontSize);  
+        FT_Set_Pixel_Sizes(face, 0, fontSize);
 
         // Checks if glyphs can be loaded
         if (FT_Load_Char(face, 'X', FT_LOAD_RENDER)) // Loads glyph for X from face, FT_LOAD_RENDER creates an 8-bit gray fontSize bitmap for said glyph
         {
             std::cout << "ERROR: Freetype failed to load glyphs!" << std::endl;
+            FT_Done_Face(face);
+            FT_Done_FreeType(library);
+            return;
         }
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // Disables byte-alignment restriction (so bytes are not always multiples of 4)

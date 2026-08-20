@@ -184,6 +184,11 @@ void RunMainLoop(GLFWwindow* window,
         }
         ++frameIdx;
 
+        // Keep the AoS particle list in sync with the current simulated positions.
+        // UI selection / deletion logic operates on the AoS list, so stale
+        // positions here cause deletes to target the original spawn locations.
+        SyncSoAToParticles(particles, posX, posY);
+
         // --- Rendering Preparation ---
         if (circles.size() != posX.size()) circles.resize(posX.size());
 
@@ -266,11 +271,8 @@ void RunMainLoop(GLFWwindow* window,
         {
             std::vector<size_t> indicesToRemove; indicesToRemove.reserve(world.selected.size());
             for (int idx : world.selected) if (idx >= 0 && static_cast<size_t>(idx) < particles.size()) indicesToRemove.push_back(static_cast<size_t>(idx));
-            std::sort(indicesToRemove.begin(), indicesToRemove.end(), std::greater<size_t>());
-            for (size_t index : indicesToRemove) particles.erase(particles.begin() + index);
+            RemoveParticlesByIndices(particles, posX, posY, velX, velY, colorIDs, indicesToRemove);
             world.selected.clear(); world.selectedMarkerSizes.clear(); subPanel.ResetButton(deleteButton);
-            // Sync AoS -> SoA after deletions to keep buffers consistent
-            SyncParticlesToSoA(particles, posX, posY, velX, velY, colorIDs);
         }
 
         // Spawn particles: APPEND to SoA buffers to preserve current simulated positions.

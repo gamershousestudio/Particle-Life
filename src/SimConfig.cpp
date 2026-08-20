@@ -1,5 +1,48 @@
 #include "SimConfig.h"
 #include <random>
+#include <filesystem>
+
+namespace {
+std::filesystem::path SafeCurrentPath()
+{
+    try
+    {
+        return std::filesystem::current_path();
+    }
+    catch (const std::filesystem::filesystem_error &)
+    {
+        return std::filesystem::path("/");
+    }
+}
+
+std::string ResolveFontPath()
+{
+    const std::filesystem::path relativePath = "res/fonts/Uroob-Regular.ttf";
+    const std::filesystem::path fallbackPath = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+
+    const std::filesystem::path currentRoot = SafeCurrentPath();
+    const std::array<std::filesystem::path, 6> roots = {
+        currentRoot,
+        currentRoot.parent_path(),
+        currentRoot.parent_path().parent_path(),
+        std::filesystem::path("/home/arobertson/Documents/GitHub/Particle-Life"),
+        std::filesystem::path("/home/arobertson/Documents/GitHub/Particle-Life/build"),
+        std::filesystem::path("/")
+    };
+
+    for (const auto &root : roots)
+    {
+        const std::filesystem::path candidate = root / relativePath;
+        if (std::filesystem::exists(candidate) && std::filesystem::is_regular_file(candidate))
+            return candidate.string();
+    }
+
+    if (std::filesystem::exists(fallbackPath) && std::filesystem::is_regular_file(fallbackPath))
+        return fallbackPath.string();
+
+    return relativePath.string();
+}
+}
 
 const char* programName = "Particle Life";
 
@@ -30,7 +73,7 @@ const bool punishClusters = false;
 const bool side = 0; // Left = 0; right = 1
 const float length = .6f;
 
-const std::string fontPath = "res/fonts/Uroob-Regular.ttf";
+const std::string fontPath = ResolveFontPath();
 
 std::vector<std::vector<float>> interactions(colorsCount, std::vector<float>(colorsCount));
 

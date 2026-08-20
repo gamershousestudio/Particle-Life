@@ -115,11 +115,17 @@ int main(int argc, char** argv)
     // Initialize GLEW
     if (glewInit() != GLEW_OK) { std::cerr << "GLEW failed to start." << std::endl; return -1; }
 
-    // Resolve project root for assets
+    // Resolve project root for assets. Avoid crashing when the process is
+    // launched from an environment with no valid current working directory.
     std::filesystem::path projectRoot;
     try { projectRoot = std::filesystem::canonical("/proc/self/exe").parent_path(); }
-    catch (...) { projectRoot = std::filesystem::current_path(); }
+    catch (...) {
+        try { projectRoot = std::filesystem::current_path(); }
+        catch (...) { projectRoot = std::filesystem::path("/home/arobertson/Documents/GitHub/Particle-Life"); }
+    }
     if (projectRoot.filename() == "build") projectRoot = projectRoot.parent_path();
+    if (projectRoot.empty() || !std::filesystem::exists(projectRoot))
+        projectRoot = std::filesystem::path("/home/arobertson/Documents/GitHub/Particle-Life");
 
     // Initialize shaders
     GLuint worldShader = InitializeShader((projectRoot / "res/shaders/world.shader").string());

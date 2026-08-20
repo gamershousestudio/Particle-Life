@@ -55,6 +55,43 @@ int main()
         }
     }
 
+    // Regression check: if the SoA buffers are updated, the AoS list must also
+    // reflect the live particle positions before UI selection and deletion use it.
+    std::vector<float> livePosX = posX;
+    std::vector<float> livePosY = posY;
+    for (size_t i = 0; i < livePosX.size(); ++i)
+    {
+        livePosX[i] += 0.25f;
+        livePosY[i] -= 0.5f;
+    }
+    SyncSoAToParticles(particles, livePosX, livePosY);
+    for (size_t i = 0; i < before.size(); ++i)
+    {
+        const auto actual = particles[i].GetPosition();
+        if (std::fabs(actual[0] - livePosX[i]) > 1e-6f || std::fabs(actual[1] - livePosY[i]) > 1e-6f)
+        {
+            ok = false;
+            std::cerr << "AoS sync mismatch after live update: expected " << livePosX[i] << "," << livePosY[i] << " got " << actual[0] << "," << actual[1] << "\n";
+            break;
+        }
+    }
+
+    // Deletion regression: removing a middle particle must not leave the
+    // remaining velocity data misaligned with particle order.
+    std::vector<Particle> deleteParticles = particles;
+    std::vector<float> deletePosX = livePosX;
+    std::vector<float> deletePosY = livePosY;
+    std::vector<float> deleteVelX(deleteParticles.size(), 0.5f);
+    std::vector<float> deleteVelY(deleteParticles.size(), -0.25f);
+    std::vector<int> deleteColorIDs(deleteParticles.size(), 1);
+    std::vector<size_t> deleteIdx = {deleteParticles.size() / 2};
+    RemoveParticlesByIndices(deleteParticles, deletePosX, deletePosY, deleteVelX, deleteVelY, deleteColorIDs, deleteIdx);
+    if (deleteParticles.size() != deletePosX.size() || deleteParticles.size() != deleteVelX.size() || deleteParticles.size() != deleteColorIDs.size())
+    {
+        ok = false;
+        std::cerr << "Delete sync mismatch after removing middle particle\n";
+    }
+
     if (ok) { std::cout << "spawn_test: PASS\n"; return 0; }
     else { std::cout << "spawn_test: FAIL\n"; return 2; }
 }

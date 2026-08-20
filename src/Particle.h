@@ -128,6 +128,34 @@ static inline void SyncParticlesToSoA(const std::vector<Particle> &particles,
     }
 }
 
+// Remove particles and their matching SoA entries while preserving the
+// current live ordering. This keeps the AoS and SoA representations aligned,
+// especially when deleting a particle from the middle of the list.
+static inline void RemoveParticlesByIndices(std::vector<Particle> &particles,
+                                           std::vector<float> &posX,
+                                           std::vector<float> &posY,
+                                           std::vector<float> &velX,
+                                           std::vector<float> &velY,
+                                           std::vector<int> &colorIDs,
+                                           const std::vector<size_t> &indices)
+{
+    if (indices.empty()) return;
+
+    std::vector<size_t> sorted = indices;
+    std::sort(sorted.begin(), sorted.end(), std::greater<size_t>());
+
+    for (size_t idx : sorted)
+    {
+        if (idx >= particles.size()) continue;
+        particles.erase(particles.begin() + static_cast<std::ptrdiff_t>(idx));
+        if (idx < posX.size()) posX.erase(posX.begin() + static_cast<std::ptrdiff_t>(idx));
+        if (idx < posY.size()) posY.erase(posY.begin() + static_cast<std::ptrdiff_t>(idx));
+        if (idx < velX.size()) velX.erase(velX.begin() + static_cast<std::ptrdiff_t>(idx));
+        if (idx < velY.size()) velY.erase(velY.begin() + static_cast<std::ptrdiff_t>(idx));
+        if (idx < colorIDs.size()) colorIDs.erase(colorIDs.begin() + static_cast<std::ptrdiff_t>(idx));
+    }
+}
+
 // Spawns particles randomly around the map
 static inline std::vector<Particle> InitializeParticles(int count, int variety)
 {
