@@ -229,6 +229,18 @@ void RunMainLoop(GLFWwindow* window,
         world.selectedMarkerSizes = std::move(prunedMarkerSizes);
 
         // --- Render ---
+        // Keep the projection and UI sizing matched to the live framebuffer. A
+        // window resize can leave stale aspect values in the render path if we do
+        // not refresh the active viewport and the world/panel aspect every frame.
+        int framebufferWidth = 0;
+        int framebufferHeight = 0;
+        glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
+        if (framebufferHeight <= 0) framebufferHeight = 1;
+
+        glViewport(0, 0, framebufferWidth, framebufferHeight);
+        aspect = static_cast<float>(framebufferWidth) / static_cast<float>(framebufferHeight);
+        panel.GetWorld().SetAspect(static_cast<float>(framebufferWidth), static_cast<float>(framebufferHeight));
+
         glClear(GL_COLOR_BUFFER_BIT);
         renderer.DrawBatch(circles, worldShader, aspect);
         world.DisplaySelectionSoA(uiShader, posX, posY, posX.size());
@@ -258,7 +270,8 @@ void RunMainLoop(GLFWwindow* window,
             if (!UI::Events::leftMouseDownStartedOnPanel)
             {
                 double xCurrent, yCurrent; glfwGetCursorPos(window, &xCurrent, &yCurrent);
-                int w, h; glfwGetWindowSize(window, &w, &h);
+                int w, h; glfwGetFramebufferSize(window, &w, &h);
+                if (w <= 0) w = 1; if (h <= 0) h = 1;
                 const double currentX = (xCurrent / w) * 2.0 - 1.0;
                 const double currentY = -((yCurrent / h) * 2.0 - 1.0);
                 const double startX = UI::Events::selectionStartPos[0]; const double startY = UI::Events::selectionStartPos[1];
@@ -319,7 +332,8 @@ void RunMainLoop(GLFWwindow* window,
                 {
                     float sx = static_cast<float>(minX + (rand() / (float)RAND_MAX) * (maxX - minX));
                     float sy = static_cast<float>(minY + (rand() / (float)RAND_MAX) * (maxY - minY));
-                    particles.emplace_back(gfx::Circle{sx, sy, radius, Particle::GetColor(selectedColorIndex, 1.0f, variety)}, selectedColorIndex);
+                    const float spawnRadius = static_cast<float>(radius);
+                    particles.emplace_back(gfx::Circle{sx, sy, spawnRadius, Particle::GetColor(selectedColorIndex, 1.0f, variety)}, selectedColorIndex);
                     posX.push_back(sx);
                     posY.push_back(sy);
                     velX.push_back(0.0f);

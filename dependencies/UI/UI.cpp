@@ -2,6 +2,26 @@
 
 namespace UI
 {
+    namespace
+    {
+        inline void GetScaledWindowSize(GLFWwindow *window, int &width, int &height)
+        {
+            glfwGetFramebufferSize(window, &width, &height);
+            if (width <= 0) width = 1;
+            if (height <= 0) height = 1;
+        }
+
+        inline float ToNDCX(double x, int width)
+        {
+            return static_cast<float>((x / static_cast<double>(width)) * 2.0 - 1.0);
+        }
+
+        inline float ToNDCY(double y, int height)
+        {
+            return static_cast<float>(-((y / static_cast<double>(height)) * 2.0 - 1.0));
+        }
+    }
+
     // All definitions for events struct variables
     #pragma region Events
 
@@ -47,19 +67,18 @@ namespace UI
     // Called every time is left drag clicked
     void World::LeftDrag(GLFWwindow *window, GLuint shader)
     {
-        // Get current cursor position
+        // Get current cursor position and convert it using the actual pixels used
+        // by the framebuffer. This keeps the drag math aligned with the active
+        // viewport when the OS is running a HiDPI or resized window.
         double x1, y1;
         glfwGetCursorPos(window, &x1, &y1);
 
         // Get current window aspect
         int w, h;
-        glfwGetWindowSize(window, &w, &h);
+        GetScaledWindowSize(window, w, h);
 
-        // Normalize x and y values
-        // Divide by width/height, multiply by two, and subtract one
-        // Normalizes value to [0, 1600] to [-1, 1]
-        x1 = (x1/w)*2-1;
-        y1 = -((y1/h)*2-1);
+        x1 = ToNDCX(x1, w);
+        y1 = ToNDCY(y1, h);
 
         // Get previous mouse pos
         float x0 = Events::pressedPos[0];
@@ -438,11 +457,10 @@ namespace UI
         // Update world's aspect ratio
         int width, height;
 
-        // Retrieve the window's current dimensions
-        glfwGetWindowSize(window, &width, &height);
-
-        // Calculate the aspect ratio
-        world.aspect = (float)width / (float)height;
+        // Retrieve the live framebuffer dimensions instead of the logical window
+        // size so the world aspect stays correct on HiDPI and resized windows.
+        GetScaledWindowSize(window, width, height);
+        world.aspect = static_cast<float>(width) / static_cast<float>(height);
 
         // Initializes all other elements
         for (auto &e : elements)
@@ -550,19 +568,17 @@ namespace UI
         // Get panel instance
         Panel* panel = static_cast<Panel*>(glfwGetWindowUserPointer(window));
 
-        // Get current cursor position
+        // Normalize the pointer against the active framebuffer size so the scroll
+        // interactions remain aligned with the rendered UI after a resize.
         double x, y;
         glfwGetCursorPos(window, &x, &y);
 
         // Get current window aspect
         int w, h;
-        glfwGetWindowSize(window, &w, &h);
+        GetScaledWindowSize(window, w, h);
 
-        // Normalize x and y values
-        // Divide by width/height, multiply by two, and subtract one
-        // Normalizes value to [0, 1600] to [-1, 1]
-        x = (x/w)*2-1;
-        y = -((y/h)*2-1);
+        x = ToNDCX(x, w);
+        y = ToNDCY(y, h);
 
         // Variable to store element
         Element *elementPtr;
@@ -598,19 +614,17 @@ namespace UI
         // Get panel instance
         Panel* panel = static_cast<Panel*>(glfwGetWindowUserPointer(window));
 
-        // Get current cursor position
+        // Convert pointer space using the framebuffer size so clicks still land on
+        // the correct normalized coordinates after the window is resized.
         double x, y;
         glfwGetCursorPos(window, &x, &y);
 
         // Get current window aspect
         int w, h;
-        glfwGetWindowSize(window, &w, &h);
+        GetScaledWindowSize(window, w, h);
 
-        // Normalize x and y values
-        // Divide by width/height, multiply by two, and subtract one
-        // Normalizes value to [0, 1600] to [-1, 1]
-        x = (x/w)*2-1;
-        y = -((y/h)*2-1);
+        x = ToNDCX(x, w);
+        y = ToNDCY(y, h);
 
         // What mouse button was clicked
         if(button == GLFW_MOUSE_BUTTON_LEFT)
@@ -767,13 +781,10 @@ namespace UI
 
         // Get current window aspect
         int w, h;
-        glfwGetWindowSize(window, &w, &h);
+        GetScaledWindowSize(window, w, h);
 
-        // Normalize x and y values
-        // Divide by width/height, multiply by two, and subtract one
-        // Normalizes value to [0, 1600] to [-1, 1]
-        x = (x/w)*2-1;
-        y = -((y/h)*2-1);
+        x = ToNDCX(x, w);
+        y = ToNDCY(y, h);
 
         // Conditions for when special cursors are used
         if(((edge - .005) <= x) && (x <= edge + .005) && !Events::leftMouseDown) // Is cursor currently within ten pixels of the panel egde -> set to resize panel cursor
@@ -994,17 +1005,17 @@ namespace UI
         // If right mouse is down and didn't start on panel -> do right mouse drag
         if (Events::rightMouseDown && !Events::rightMouseDownStartedOnPanel)
         {
-            // Get cursor position
+            // Convert the cursor using the framebuffer dimensions so the selection
+            // rectangle remains aligned with the rendered area after a resize.
             double xCursor, yCursor;
             glfwGetCursorPos(window, &xCursor, &yCursor);
 
             // Get aspect ration
             int cursorW, cursorH;
-            glfwGetWindowSize(window, &cursorW, &cursorH);
+            GetScaledWindowSize(window, cursorW, cursorH);
 
-            // Scale cursor position by aspect ratio
-            const double cursorX = (xCursor / cursorW) * 2.0 - 1.0;
-            const double cursorY = -((yCursor / cursorH) * 2.0 - 1.0);
+            const double cursorX = ToNDCX(xCursor, cursorW);
+            const double cursorY = ToNDCY(yCursor, cursorH);
 
             // Record where trigger started
             Events::rightSelectionCurrentPos = {cursorX, cursorY};
@@ -1014,19 +1025,17 @@ namespace UI
 
         // If dragging is occuring outside of the panel, call the world's drag function
 
-        // Get current cursor position
+        // Convert the pointer using the framebuffer size so the panel resize
+        // drag stays aligned with the rendered layout after a resize.
         double x, y;
         glfwGetCursorPos(window, &x, &y);
 
         // Get current window aspect
         int w, h;
-        glfwGetWindowSize(window, &w, &h);
+        GetScaledWindowSize(window, w, h);
 
-        // Normalize x and y values
-        // Divide by width/height, multiply by two, and subtract one
-        // Normalizes value to [0, 1600] to [-1, 1]
-        x = (x/w)*2-1;
-        y = -((y/h)*2-1);
+        x = ToNDCX(x, w);
+        y = ToNDCY(y, h);
 
         if(!((side == -1 && x < (-1+length)) || (side == 1 && x > (1-length)))) // Only continue if scroll area was within the panel.length
             if(Events::leftMouseDown && !Events::leftMouseDownStartedOnPanel && !Events::draggingPanel)
@@ -1285,19 +1294,16 @@ namespace UI
     // Called when scrolling is detected over grid, updates values based on scroll input
     void Grid::Scroll(GLFWwindow *window, double xOffset, double yOffset)
     {
-        // Get current mouse position
+        // Normalize the pointer using the live framebuffer size so the grid scroll
+        // hit testing matches the actual drawn area under resize and HiDPI scale.
         double x, y;
         glfwGetCursorPos(window, &x, &y);
 
-        // Get current window aspect
         int w, h;
-        glfwGetWindowSize(window, &w, &h);
+        GetScaledWindowSize(window, w, h);
 
-        // Normalize x and y values
-        // Divide by width/height, multiply by two, and subtract one
-        // Normalizes value to [0, 1600] to [-1, 1]
-        x = (x/w)*2-1;
-        y = -((y/h)*2-1);
+        x = ToNDCX(x, w);
+        y = ToNDCY(y, h);
 
         float newValue;
 
@@ -1394,6 +1400,20 @@ namespace UI
     // Loads font based on information already provided
     void TextArea::LoadFont()
     {
+        int viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        const float viewportWidth = static_cast<float>(std::max(1, viewport[2]));
+        const float viewportHeight = static_cast<float>(std::max(1, viewport[3]));
+        const float viewportScale = std::clamp((viewportWidth / 1800.0f + viewportHeight / 1000.0f) * 0.5f, 0.55f, 1.25f);
+        const int targetPixelSize = std::max(1, static_cast<int>(std::round(fontSize * viewportScale)));
+
+        if (lastLoadedPixelSize == targetPixelSize && !Characters.empty())
+            return;
+
+        for (const auto &entry : Characters)
+            glDeleteTextures(1, &entry.second.textureID);
+        Characters.clear();
+
         // Initialization of freetype
         auto error = FT_Init_FreeType(&library); // Creates a new library
 
@@ -1426,7 +1446,8 @@ namespace UI
         }
 
         // Sets the font height in pixels
-        FT_Set_Pixel_Sizes(face, 0, fontSize);
+        FT_Set_Pixel_Sizes(face, 0, targetPixelSize);
+        lastLoadedPixelSize = targetPixelSize;
 
         // Checks if glyphs can be loaded
         if (FT_Load_Char(face, 'X', FT_LOAD_RENDER)) // Loads glyph for X from face, FT_LOAD_RENDER creates an 8-bit gray fontSize bitmap for said glyph
@@ -1438,11 +1459,11 @@ namespace UI
         }
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // Disables byte-alignment restriction (so bytes are not always multiples of 4)
-  
+
         // Loops through each possible character in standard ASCII
         for (unsigned char c = 0; c < 128; c++)
         {
-            // Load character glyph 
+            // Load character glyph
             if (FT_Load_Char(face, c, FT_LOAD_RENDER))
             {
                 // Load attempt did not work
@@ -1498,18 +1519,6 @@ namespace UI
         LoadFont();
         RecalculatePosition();
 
-        int viewport[4];
-        glGetIntegerv(GL_VIEWPORT, viewport);
-        glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(viewport[2]), 0.0f, static_cast<float>(viewport[3]));
-
-        glUseProgram(shader);
-        glUniformMatrix4fv(
-            glGetUniformLocation(shader, "projection"),
-            1,
-            GL_FALSE,
-            &projection[0][0]
-        );
-
         // Allows for colors to render properly
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1540,12 +1549,14 @@ namespace UI
         float width = 0.0f;
         for (char c : text)
         {
-            Character ch = Characters[c];
-            width += (ch.advance >> 6);
+            const auto it = Characters.find(c);
+            if (it == Characters.end())
+                continue;
+            width += static_cast<float>(it->second.advance >> 6);
         }
 
         // How tall text field is
-        float height = static_cast<float>(fontSize);
+        float height = static_cast<float>(lastLoadedPixelSize > 0 ? lastLoadedPixelSize : fontSize);
 
         // Get aspect ratio from viewport
         int viewport[4];
@@ -1567,9 +1578,21 @@ namespace UI
     // Draws text based on all previously given information
     void TextArea::Draw(GLuint shader)
     {
+        int viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        const float viewportWidth = static_cast<float>(viewport[2]);
+        const float viewportHeight = static_cast<float>(viewport[3]);
+        const float viewportScale = std::clamp((viewportWidth / 1800.0f + viewportHeight / 1000.0f) * 0.5f, 0.55f, 1.25f);
+        const int targetPixelSize = std::max(1, static_cast<int>(std::round(fontSize * viewportScale)));
+
+        if (Characters.empty() || lastLoadedPixelSize != targetPixelSize)
+            LoadFont();
+
         glUseProgram(shader);
 
-        // Loads vertex array buffer
+        glm::mat4 projection = glm::ortho(0.0f, viewportWidth, 0.0f, viewportHeight);
+        glUniformMatrix4fv(glGetUniformLocation(shader, "projection"), 1, GL_FALSE, &projection[0][0]);
+
         glUniform3f(glGetUniformLocation(shader, "textColor"), color[0], color[1], color[2]);
         glActiveTexture(GL_TEXTURE0);
         glBindVertexArray(vao);
@@ -1581,49 +1604,40 @@ namespace UI
 
         for (char c : text)
         {
-            Character ch = Characters[c];
-            width += (ch.advance >> 6);
+            const auto it = Characters.find(c);
+            if (it == Characters.end())
+                continue;
+
+            const Character &ch = it->second;
+            width += static_cast<float>(ch.advance >> 6);
             ascent = std::max(ascent, static_cast<float>(ch.bearing.y));
             descent = std::max(descent, static_cast<float>(ch.size.y - ch.bearing.y));
         }
 
-        // Converts normalized device coords [-1,1] into screen pixels (so units are constant, as all other elements use normalized values)
-        int viewport[4];
-        glGetIntegerv(GL_VIEWPORT, viewport);
-        const float viewportWidth = static_cast<float>(viewport[2]);
-        const float viewportHeight = static_cast<float>(viewport[3]);
+        const float screenX = (center[0] + 1.0f) * 0.5f * viewportWidth;
+        const float screenY = (center[1] + 1.0f) * 0.5f * viewportHeight;
 
-        float screenX = (center[0] + 1.0f) * 0.5f * viewportWidth;
-        float screenY = (center[1] + 1.0f) * 0.5f * viewportHeight;
-
-        // Center text (if needed)
-        float x;
+        float x = screenX;
         if (startDrawingTextAtCenter)
-            x = screenX - width * 0.5f;
-        else
-            x = screenX;
+            x -= width * 0.5f;
 
         float y = screenY - (ascent - descent) * 0.5f;
 
-        // Goes through each character in the text
-        std::string::const_iterator c;
-
-        for (c = text.begin(); c != text.end(); c++)
+        for (char c : text)
         {
-            // Loads the information for how to draw that character
-            Character ch = Characters[*c];
+            const auto it = Characters.find(c);
+            if (it == Characters.end())
+                continue;
 
-            // Where to draw it
-            float xpos = x + ch.bearing.x;
-            float ypos = y - (ch.size.y - ch.bearing.y); // Sometimes parts of glyph may need to be below line(Ex. y, g)
+            const Character &ch = it->second;
 
-            // Width / height calculation
-            float w = ch.size.x;
-            float h = ch.size.y;
+            const float xpos = x + static_cast<float>(ch.bearing.x);
+            const float ypos = y - static_cast<float>(ch.size.y - ch.bearing.y);
+            const float w = static_cast<float>(ch.size.x);
+            const float h = static_cast<float>(ch.size.y);
 
-            // Updates VBO for each character
             float vertices[6][4] = {
-                { xpos,     ypos + h,   0.0f, 0.0f },            
+                { xpos,     ypos + h,   0.0f, 0.0f },
                 { xpos,     ypos,       0.0f, 1.0f },
                 { xpos + w, ypos,       1.0f, 1.0f },
 
@@ -1632,22 +1646,15 @@ namespace UI
                 { xpos + w, ypos + h,   1.0f, 0.0f }
             };
 
-            // Renders glyph texture over quad
             glBindTexture(GL_TEXTURE_2D, ch.textureID);
-
-            // Updates content of VBO memory
             glBindBuffer(GL_ARRAY_BUFFER, vbo);
             glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-            // Renders actual quad
             glDrawArrays(GL_TRIANGLES, 0, 6);
 
-            // Advances drawing spot for next glyph
-            x += (ch.advance >> 6); // bitshift by 6 to get value in pixels (2^6 = 64)
+            x += static_cast<float>(ch.advance >> 6);
         }
 
-        // Unbinds intermediates
         glBindVertexArray(0);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
@@ -1779,17 +1786,16 @@ namespace UI
     // Updates visual and value based on new position, decided from mouse position
     void Slider::HandleInput(GLFWwindow *window)
     {
-        // Get cursor position
+        // Use the active framebuffer size for all normalized coordinates so the
+        // slider is still aligned after resizing or on HiDPI displays.
         double cursorX, cursorY;
         glfwGetCursorPos(window, &cursorX, &cursorY);
 
-        // Get window aspect
         int windowWidth, windowHeight;
-        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+        GetScaledWindowSize(window, windowWidth, windowHeight);
 
-        // Recalculate position to account for window aspect ratio
-        const float x = static_cast<float>((cursorX / windowWidth) * 2.0 - 1.0);
-        const float y = static_cast<float>(-((cursorY / windowHeight) * 2.0 - 1.0));
+        const float x = ToNDCX(cursorX, windowWidth);
+        const float y = ToNDCY(cursorY, windowHeight);
 
         // See if cursor is within range
         const bool hovered = (x >= pos[0] && x <= pos[2] && y >= pos[1] && y <= pos[3]);
@@ -1921,10 +1927,10 @@ namespace UI
         glfwGetCursorPos(window, &cursorX, &cursorY);
 
         int windowWidth, windowHeight;
-        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+        GetScaledWindowSize(window, windowWidth, windowHeight);
 
-        const float x = static_cast<float>((cursorX / windowWidth) * 2.0 - 1.0);
-        const float y = static_cast<float>(-((cursorY / windowHeight) * 2.0 - 1.0));
+        const float x = ToNDCX(cursorX, windowWidth);
+        const float y = ToNDCY(cursorY, windowHeight);
 
         const bool hovered = (x >= pos[0] && x <= pos[2] && y >= pos[1] && y <= pos[3]);
         const bool wasCandidate = candidate;
@@ -2213,10 +2219,10 @@ namespace UI
         glfwGetCursorPos(window, &cursorX, &cursorY);
 
         int windowWidth, windowHeight;
-        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+        GetScaledWindowSize(window, windowWidth, windowHeight);
 
-        const float x = static_cast<float>((cursorX / windowWidth) * 2.0 - 1.0);
-        const float y = static_cast<float>(-((cursorY / windowHeight) * 2.0 - 1.0));
+        const float x = ToNDCX(cursorX, windowWidth);
+        const float y = ToNDCY(cursorY, windowHeight);
         const bool mousePressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
         const bool mouseClicked = mousePressed && !mouseWasDown;
         mouseWasDown = mousePressed;

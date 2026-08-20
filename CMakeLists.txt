@@ -2,6 +2,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(ParticleLife)
 
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
 # C++ version
 set(CMAKE_CXX_STANDARD 23)
 
@@ -37,6 +39,30 @@ add_custom_command(TARGET ParticleLife POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     "${CMAKE_SOURCE_DIR}/res"
     "${CMAKE_BINARY_DIR}/res"
+)
+
+# Make Linux bundles load dependencies from a sibling lib directory instead of
+# depending on the target machine having the same libraries installed. The
+# packaging script in tools/release_bundle.py copies those runtime files into a
+# portable local bundle and then zips it for GitHub upload.
+set_target_properties(ParticleLife PROPERTIES
+    BUILD_RPATH "$ORIGIN/lib"
+    INSTALL_RPATH "$ORIGIN/lib"
+    SKIP_BUILD_RPATH FALSE
+)
+
+install(TARGETS ParticleLife RUNTIME DESTINATION bin)
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/res" DESTINATION "." FILES_MATCHING PATTERN "*")
+
+add_custom_target(release_bundle
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/release_bundle.py"
+            --platform "${CMAKE_SYSTEM_NAME}"
+            --binary "$<TARGET_FILE:ParticleLife>"
+            --root "${CMAKE_SOURCE_DIR}"
+            --output "${CMAKE_BINARY_DIR}/release"
+    DEPENDS ParticleLife
+    COMMENT "Packaging a portable release bundle for ${CMAKE_SYSTEM_NAME}"
+    VERBATIM
 )
 
 # SINGLE CONSOLIDATED INCLUDE AND LINK BLOCK

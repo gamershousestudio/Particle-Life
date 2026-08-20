@@ -112,6 +112,18 @@ int main(int argc, char** argv)
     if (!window) { std::cerr << "glfwCreateWindow failed." << std::endl; return -1; }
     glfwMakeContextCurrent(window);
 
+    // Resize callback: keep the GL viewport and the UI/world aspect ratio aligned
+    // with the current framebuffer size, otherwise the projection and selection
+    // rendering remain based on the old window dimensions after a resize.
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int width, int height) {
+        if (height <= 0) height = 1;
+        glViewport(0, 0, width, height);
+
+        auto* panel = static_cast<UI::Panel*>(glfwGetWindowUserPointer(win));
+        if (panel != nullptr)
+            panel->GetWorld().SetAspect(static_cast<float>(width), static_cast<float>(height));
+    });
+
     // Initialize GLEW
     if (glewInit() != GLEW_OK) { std::cerr << "GLEW failed to start." << std::endl; return -1; }
 
