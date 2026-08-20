@@ -63,8 +63,15 @@ void BuildNeighborList(const std::vector<float> &posX,
                        std::vector<std::vector<int>> &neighborList)
 {
     const int gridCellCount = gridCols * gridRows;
-    if (static_cast<int>(neighborList.size()) != particleCount)
+    if (particleCount <= 1)
+    {
         neighborList.assign(particleCount, std::vector<int>());
+        return;
+    }
+    if (static_cast<int>(neighborList.size()) != particleCount)
+        neighborList.resize(particleCount);
+    for (auto &neighbors : neighborList)
+        neighbors.clear();
 
     const int gridColsLocal = gridCols;
     const auto &px = posX;
@@ -84,13 +91,15 @@ void BuildNeighborList(const std::vector<float> &posX,
         for (int oy = -maxCellOffset; oy <= maxCellOffset; ++oy)
         {
             int ny = cy + oy;
-            if (ny < 0 || ny >= gridRows) continue;
+            if (ny < 0) ny += gridRows;
+            else if (ny >= gridRows) ny -= gridRows;
             for (int ox = -maxCellOffset; ox <= maxCellOffset; ++ox)
             {
                 int nx = cx + ox;
-                if (nx < 0 || nx >= gridColsLocal) continue;
+                if (nx < 0) nx += gridColsLocal;
+                else if (nx >= gridColsLocal) nx -= gridColsLocal;
                 int other = ny * gridColsLocal + nx;
-                if (other <= cell) continue; // avoid duplicates
+                if (other == cell) continue;
                 int start2 = cellOff[other];
                 int end2 = cellOff[other + 1];
                 for (int a = start; a < end; ++a)
@@ -168,7 +177,7 @@ void UpdateParticlesSoA(std::vector<float> &posX,
         const auto &row = interactionMatrix[cids[i]];
         const float *rowPtr = row.data();
 
-        if (!neighborList.empty())
+        if (!neighborList.empty() && neighborList[i].size() > 0)
         {
             const auto &nlist = neighborList[i];
             for (int k = 0, nk = static_cast<int>(nlist.size()); k < nk; ++k)
@@ -213,11 +222,13 @@ void UpdateParticlesSoA(std::vector<float> &posX,
             for (int oy = -maxCellOffset; oy <= maxCellOffset; ++oy)
             {
                 int ny = cellY + oy;
-                if (ny < 0 || ny >= gridRows) continue;
+                if (ny < 0) ny += gridRows;
+                else if (ny >= gridRows) ny -= gridRows;
                 for (int ox = -maxCellOffset; ox <= maxCellOffset; ++ox)
                 {
                     int nx = cellX + ox;
-                    if (nx < 0 || nx >= gridCols) continue;
+                    if (nx < 0) nx += gridCols;
+                    else if (nx >= gridCols) nx -= gridCols;
                     int neighborCell = ny * gridCols + nx;
                     int start = cellOff[neighborCell];
                     int end = cellOff[neighborCell + 1];

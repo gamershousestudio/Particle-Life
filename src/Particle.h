@@ -15,7 +15,7 @@ class Particle : public body::Body
     int colorIndex;
 
 public:
-    static std::array<float, 4> GetColor(int colorIndex, float a, int varietyCount = variety)
+    static std::array<float, 4> ComputeColorForIndex(int colorIndex, float a, int varietyCount)
     {
         const int effectiveVariety = std::max(1, varietyCount);
         const int clampedIndex = std::clamp(colorIndex, 0, effectiveVariety - 1);
@@ -46,30 +46,69 @@ public:
         return {rgb[0], rgb[1], rgb[2], a};
     }
 
+    static std::array<float, 4> GetColor(int colorIndex, float a, int varietyCount = variety)
+    {
+        static std::vector<std::array<float, 4>> stablePalette(colorsCount, {0.0f, 0.0f, 0.0f, 1.0f});
+        static std::vector<bool> stableAssigned(colorsCount, false);
+
+        const int clampedIndex = std::clamp(colorIndex, 0, colorsCount - 1);
+        if (!stableAssigned[clampedIndex])
+        {
+            stablePalette[clampedIndex] = ComputeColorForIndex(clampedIndex, 1.0f, std::max(1, varietyCount));
+            stableAssigned[clampedIndex] = true;
+        }
+
+        auto color = stablePalette[clampedIndex];
+        color[3] = a;
+        return color;
+    }
+
+    static std::vector<std::array<float, 4>> BuildPaletteForVariety(int targetVariety, int previousVariety = -1)
+    {
+        (void)previousVariety;
+        const int effectiveTarget = std::max(1, targetVariety);
+        std::vector<std::array<float, 4>> palette;
+        palette.reserve(static_cast<size_t>(effectiveTarget));
+
+        for (int i = 0; i < effectiveTarget; ++i)
+            palette.push_back(GetColor(i, 1.0f, effectiveTarget));
+
+        return palette;
+    }
+
     static std::string GetColorName(int colorIndex, int varietyCount = variety)
     {
-        const int effectiveVariety = std::max(1, varietyCount);
-        const int clampedIndex = std::clamp(colorIndex, 0, effectiveVariety - 1);
+        static std::vector<std::string> stableNames(colorsCount, "Red");
+        static std::vector<bool> stableNameAssigned(colorsCount, false);
 
-        static const std::array<std::string, 50> hueNames = {
-            "Red","Scarlet","Vermilion","Orange-Red","Red-Orange",
-            "Orange","Tangerine","Amber","Golden","Yellow-Orange",
-            "Yellow","Lemon","Chartreuse","Yellow-Green","Lime",
-            "Lime Green","Spring Green","Green","Emerald","Sea Green",
-            "Turquoise","Teal","Robin Egg Blue","Cyan","Aqua",
-            "Sky Blue","Azure","Cerulean","Dodger Blue","Blue",
-            "Cobalt","Sapphire","Indigo","Blue-Violet","Violet",
-            "Purple","Amethyst","Orchid","Medium Orchid","Magenta",
-            "Fuchsia","Deep Pink","Hot Pink","Rose","Cerise",
-            "Crimson","Ruby","Raspberry","Cherry","Red"
-        };
-        float hue = 0.0f;
-        if (effectiveVariety == 1) hue = 0.0f;
-        else if (effectiveVariety == 2) hue = (clampedIndex == 0) ? 0.0f : 180.0f;
-        else hue = 360.0f * static_cast<float>(clampedIndex) / static_cast<float>(effectiveVariety);
-        const int nameIndex = static_cast<int>(std::lround((hue / 360.0f) * static_cast<float>(hueNames.size() - 1)));
-        const int clampedNameIndex = std::clamp(nameIndex, 0, static_cast<int>(hueNames.size() - 1));
-        return hueNames[clampedNameIndex];
+        const int clampedIndex = std::clamp(colorIndex, 0, colorsCount - 1);
+        if (!stableNameAssigned[clampedIndex])
+        {
+            const int effectiveVariety = std::max(1, varietyCount);
+            static const std::array<std::string, 50> hueNames = {
+                "Red","Scarlet","Vermilion","Orange-Red","Red-Orange",
+                "Orange","Tangerine","Amber","Golden","Yellow-Orange",
+                "Yellow","Lemon","Chartreuse","Yellow-Green","Lime",
+                "Lime Green","Spring Green","Green","Emerald","Sea Green",
+                "Turquoise","Teal","Robin Egg Blue","Cyan","Aqua",
+                "Sky Blue","Azure","Cerulean","Dodger Blue","Blue",
+                "Cobalt","Sapphire","Indigo","Blue-Violet","Violet",
+                "Purple","Amethyst","Orchid","Medium Orchid","Magenta",
+                "Fuchsia","Deep Pink","Hot Pink","Rose","Cerise",
+                "Crimson","Ruby","Raspberry","Cherry","Red"
+            };
+
+            float hue = 0.0f;
+            if (effectiveVariety == 1) hue = 0.0f;
+            else if (effectiveVariety == 2) hue = (clampedIndex == 0) ? 0.0f : 180.0f;
+            else hue = 360.0f * static_cast<float>(clampedIndex) / static_cast<float>(effectiveVariety);
+            const int nameIndex = static_cast<int>(std::lround((hue / 360.0f) * static_cast<float>(hueNames.size() - 1)));
+            const int clampedNameIndex = std::clamp(nameIndex, 0, static_cast<int>(hueNames.size() - 1));
+            stableNames[clampedIndex] = hueNames[clampedNameIndex];
+            stableNameAssigned[clampedIndex] = true;
+        }
+
+        return stableNames[clampedIndex];
     }
 
     Particle(const gfx::Circle pos, int colorIndex)

@@ -156,6 +156,7 @@ int main(int argc, char** argv)
     UI::element varietySlider = panel.AddSlider(.1f, .85f, .2f, .04f, 3.0f/colorsCount);
 
     UI::element rerandomizeButton = panel.AddButton(0, .7f, .16f, .055f, {.35f, .35f, .35f, .9f}, textShader, "Randomize", fontPath, 20);
+    UI::element clearAllButton = panel.AddButton(0, -.9f, .18f, .06f, {.75f, .25f, .25f, .9f}, textShader, "Clear All", fontPath, 20);
 
     UI::element interactForceSlider = panel.AddSlider(.1f, -.2f, .2f, .04f, interactForce);
     UI::element repelForceSlider = panel.AddSlider(.1f, -.3f, .2f, .04f, repelForce);
@@ -169,6 +170,10 @@ int main(int argc, char** argv)
 
     panel.LinkElements(timeText, timeSlider);
     panel.LinkElements(varietyText, varietySlider);
+    panel.LinkElements(interactForceText, interactForceSlider);
+    panel.LinkElements(repelForceText, repelForceSlider);
+    panel.LinkElements(interactRangeText, interactRangeSlider);
+    panel.LinkElements(repelRangeText, repelRangeSlider);
 
     std::vector<std::string> colorNames; std::vector<std::array<float,4>> colorOptions;
     colorNames.reserve(variety); colorOptions.reserve(variety);
@@ -190,10 +195,14 @@ int main(int argc, char** argv)
     try { gpuAvailable = compute.Init((projectRoot / "dependencies/ParticleCompute/compute.comp").string()); } catch (...) { gpuAvailable = false; }
 
     RunMainLoop(
-        window, panel, subPanel, grid, timeText, timeSlider, varietyText, varietySlider, rerandomizeButton, interactForceSlider, 
-        repelForceSlider, interactRangeSlider, repelRangeSlider, interactForceText, repelForceText, interactRangeText, repelRangeText, 
-        amountText, amountSlider, spawnButton, deleteButton, colorDropdown, renderer, worldShader, uiShader, textShader, particles, 
-        posX, posY, velX, velY, colorIDs, circles, aspect, gpuAvailable ? &compute : nullptr, gpuAvailable
+        window, panel, subPanel, grid, timeText, timeSlider, varietyText, varietySlider,
+        rerandomizeButton, clearAllButton,
+        interactForceSlider, repelForceSlider, interactRangeSlider, repelRangeSlider,
+        interactForceText, repelForceText, interactRangeText, repelRangeText,
+        amountText, amountSlider, spawnButton, deleteButton, colorDropdown,
+        renderer, worldShader, uiShader, textShader,
+        particles, posX, posY, velX, velY, colorIDs, circles,
+        aspect, gpuAvailable ? &compute : nullptr, gpuAvailable
     );
 
     return 0;

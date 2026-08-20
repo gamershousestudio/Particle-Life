@@ -92,6 +92,62 @@ int main()
         std::cerr << "Delete sync mismatch after removing middle particle\n";
     }
 
+    // Variety-change regression: increasing the variety must not recolor the
+    // existing particle set. Existing color slots keep their previous RGBA.
+    const int oldVariety = 3;
+    const int newVariety = 5;
+    const auto beforeIncrease = Particle::GetColor(0, 1.0f, oldVariety);
+    const auto colorIndex0AfterIncrease = Particle::GetColor(0, 1.0f, newVariety);
+    if (std::fabs(beforeIncrease[0] - colorIndex0AfterIncrease[0]) > 1e-6f ||
+        std::fabs(beforeIncrease[1] - colorIndex0AfterIncrease[1]) > 1e-6f ||
+        std::fabs(beforeIncrease[2] - colorIndex0AfterIncrease[2]) > 1e-6f)
+    {
+        ok = false;
+        std::cerr << "Variety increase recolored an existing slot at index 0\n";
+    }
+    auto stablePalette = Particle::BuildPaletteForVariety(newVariety, oldVariety);
+    if (stablePalette.size() != static_cast<size_t>(newVariety))
+    {
+        ok = false;
+        std::cerr << "Stable palette size mismatch after variety increase\n";
+    }
+    else
+    {
+        for (int i = 0; i < oldVariety; ++i)
+        {
+            const auto expected = Particle::GetColor(i, 1.0f, oldVariety);
+            const auto actual = stablePalette[i];
+            if (std::fabs(actual[0] - expected[0]) > 1e-6f || std::fabs(actual[1] - expected[1]) > 1e-6f ||
+                std::fabs(actual[2] - expected[2]) > 1e-6f || std::fabs(actual[3] - expected[3]) > 1e-6f)
+            {
+                ok = false;
+                std::cerr << "Variety increase recolored an existing slot at index " << i << "\n";
+                break;
+            }
+        }
+    }
+
+    // Variety shrink regression: invalid color IDs should be removed, not left behind.
+    std::vector<Particle> shrinkParticles;
+    shrinkParticles.emplace_back(gfx::Circle{0.0f, 0.0f, radius, Particle::GetColor(0, 1.0f, oldVariety)}, 0);
+    shrinkParticles.emplace_back(gfx::Circle{0.1f, 0.1f, radius, Particle::GetColor(1, 1.0f, oldVariety)}, 1);
+    shrinkParticles.emplace_back(gfx::Circle{0.2f, 0.2f, radius, Particle::GetColor(2, 1.0f, oldVariety)}, 2);
+    std::vector<float> shrinkPosX = {0.0f, 0.1f, 0.2f};
+    std::vector<float> shrinkPosY = {0.0f, 0.1f, 0.2f};
+    std::vector<float> shrinkVelX = {0.0f, 0.0f, 0.0f};
+    std::vector<float> shrinkVelY = {0.0f, 0.0f, 0.0f};
+    std::vector<int> shrinkColorIDs = {0, 1, 2};
+    const int targetVariety = 2;
+    std::vector<size_t> invalidIndices;
+    for (size_t i = 0; i < shrinkColorIDs.size(); ++i)
+        if (shrinkColorIDs[i] >= targetVariety) invalidIndices.push_back(i);
+    RemoveParticlesByIndices(shrinkParticles, shrinkPosX, shrinkPosY, shrinkVelX, shrinkVelY, shrinkColorIDs, invalidIndices);
+    if (shrinkParticles.size() != static_cast<size_t>(targetVariety))
+    {
+        ok = false;
+        std::cerr << "Variety shrink left stale particles behind\n";
+    }
+
     if (ok) { std::cout << "spawn_test: PASS\n"; return 0; }
     else { std::cout << "spawn_test: FAIL\n"; return 2; }
 }

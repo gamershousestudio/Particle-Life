@@ -68,7 +68,7 @@ const double radius = .01;
 const int count = 0;
 unsigned int variety = 4; // Total number of different particle types to use; not marked as const as it is changed if too large in main()
 
-const bool punishClusters = false;
+const bool punishClusters = true;
 
 const bool side = 0; // Left = 0; right = 1
 const float length = .6f;

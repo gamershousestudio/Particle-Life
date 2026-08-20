@@ -46,6 +46,7 @@ void RunMainLoop(GLFWwindow* window,
                  UI::element varietyText,
                  UI::element varietySlider,
                  UI::element rerandomizeButton,
+                 UI::element clearAllButton,
                  UI::element interactForceSlider,
                  UI::element repelForceSlider,
                  UI::element interactRangeSlider,
@@ -103,6 +104,7 @@ void RunMainLoop(GLFWwindow* window,
 
     static int frameIdx = 0;
     static std::vector<std::vector<int>> neighborList;
+    static int lastNeighborBuildCount = -1;
 
     while (!glfwWindowShouldClose(window))
     {
@@ -134,17 +136,22 @@ void RunMainLoop(GLFWwindow* window,
 
         if (variety != lastDropdownVariety)
         {
+            const int newVariety = static_cast<int>(variety);
             std::vector<std::string> colorNames;
             std::vector<std::array<float, 4>> colorOptions;
-            colorNames.reserve(variety);
-            colorOptions.reserve(variety);
-            for (unsigned int i = 0; i < variety; ++i)
+            const auto stablePalette = Particle::BuildPaletteForVariety(newVariety, newVariety);
+            colorNames.reserve(static_cast<size_t>(newVariety));
+            colorOptions.reserve(static_cast<size_t>(newVariety));
+            for (int i = 0; i < newVariety; ++i)
             {
-                colorNames.push_back(Particle::GetColorName(static_cast<int>(i), variety));
-                colorOptions.push_back(Particle::GetColor(static_cast<int>(i), .9f, variety));
+                colorNames.push_back(Particle::GetColorName(i, newVariety));
+                colorOptions.push_back(stablePalette[static_cast<size_t>(i)]);
             }
             subPanel.SetDropdownOptions(colorDropdown, colorNames, colorOptions);
-            lastDropdownVariety = variety;
+
+            cachedColors = stablePalette;
+            for (auto &entry : cachedColors) entry[3] = 1.0f;
+            lastDropdownVariety = newVariety;
         }
 
         auto gridValues = panel.GetGridValues(grid);
@@ -160,14 +167,21 @@ void RunMainLoop(GLFWwindow* window,
         pcompute::BuildSpatialGridSoA(posX, posY, particleCount, gridCols, gridRows, cellCounts, cellOffsets, flatIndices, writePos);
         const auto &interactionMatrix = gridValues ? *gridValues : interactions;
 
-        const int rebuildInterval = 4;
-        if (frameIdx % rebuildInterval == 0)
+        const bool useNeighborCache = particleCount <= 2000;
+        const int rebuildInterval = 8;
+        const bool rebuildNeighbors = useNeighborCache && ((particleCount != lastNeighborBuildCount) || (frameIdx % rebuildInterval == 0));
+        if (rebuildNeighbors && particleCount > 1)
         {
-            neighborList.assign(particleCount, {});
             const float skin = static_cast<float>(interactRange) * 0.5f;
             const float maxNeighborDist = static_cast<float>(interactRange) + skin;
             const float maxNeighborDistSq = maxNeighborDist * maxNeighborDist;
             pcompute::BuildNeighborList(posX, posY, particleCount, gridCols, gridRows, maxCellOffset, cellOffsets, flatIndices, maxNeighborDistSq, neighborList);
+            lastNeighborBuildCount = particleCount;
+        }
+        else if (!useNeighborCache || particleCount <= 1)
+        {
+            neighborList.assign(particleCount, std::vector<int>());
+            lastNeighborBuildCount = particleCount;
         }
 
         if (useGPU && compute)
@@ -179,25 +193,23 @@ void RunMainLoop(GLFWwindow* window,
             compute->ReadBackParticles(posX, posY, velX, velY);
         }
         else
-        {
-            pcompute::UpdateParticlesSoA(posX, posY, velX, velY, colorIDs, particleCount, gridCols, gridRows, maxCellOffset, cellOffsets, flatIndices, interactionMatrix, static_cast<float>(interactRange), static_cast<float>(repelRange), static_cast<float>(interactForce), static_cast<float>(repelForce), simDelta, neighborList, particleIndices);
-        }
+            pcompute::UpdateParticlesSoA(
+                posX, posY, velX, velY, colorIDs, particleCount, gridCols, gridRows, 
+                maxCellOffset, cellOffsets, flatIndices, interactionMatrix, static_cast<float>(interactRange), 
+                static_cast<float>(repelRange), static_cast<float>(interactForce), static_cast<float>(repelForce), 
+                simDelta, neighborList, particleIndices
+            );
         ++frameIdx;
-
-        // Keep the AoS particle list in sync with the current simulated positions.
-        // UI selection / deletion logic operates on the AoS list, so stale
-        // positions here cause deletes to target the original spawn locations.
-        SyncSoAToParticles(particles, posX, posY);
 
         // --- Rendering Preparation ---
         if (circles.size() != posX.size()) circles.resize(posX.size());
 
         if (cachedColors.size() != variety)
         {
-            cachedColors.clear();
-            cachedColors.reserve(variety);
-            for (unsigned int c = 0; c < variety; ++c)
-                cachedColors.push_back(Particle::GetColor(static_cast<int>(c), 1.0f, variety));
+            const int currentVariety = static_cast<int>(variety);
+            const int previousVariety = static_cast<int>((cachedColors.size() > 0) ? std::min<size_t>(cachedColors.size(), static_cast<size_t>(currentVariety)) : currentVariety);
+            cachedColors = Particle::BuildPaletteForVariety(currentVariety, previousVariety);
+            for (auto &entry : cachedColors) entry[3] = 1.0f;
         }
 
         FillCirclesFromSoA(posX, posY, colorIDs, cachedColors, radius, circles);
@@ -205,10 +217,11 @@ void RunMainLoop(GLFWwindow* window,
         // --- Selection Pruning ---
         std::vector<int> prunedSelection; prunedSelection.reserve(world.selected.size());
         std::vector<float> prunedMarkerSizes; prunedMarkerSizes.reserve(world.selected.size());
+        const size_t liveParticleCount = posX.size();
         for (size_t i = 0; i < world.selected.size(); ++i)
         {
             int idx = world.selected[i];
-            if (idx < 0 || static_cast<size_t>(idx) >= particles.size()) continue;
+            if (idx < 0 || static_cast<size_t>(idx) >= liveParticleCount) continue;
             prunedSelection.push_back(idx);
             prunedMarkerSizes.push_back(world.selectedMarkerSizes[i]);
         }
@@ -218,7 +231,7 @@ void RunMainLoop(GLFWwindow* window,
         // --- Render ---
         glClear(GL_COLOR_BUFFER_BIT);
         renderer.DrawBatch(circles, worldShader, aspect);
-        world.DisplaySelectionSoA(uiShader, posX, posY, particles.size());
+        world.DisplaySelectionSoA(uiShader, posX, posY, posX.size());
         world.DisplayAreaSelection(uiShader);
 
         glfwPollEvents();
@@ -252,12 +265,13 @@ void RunMainLoop(GLFWwindow* window,
                 const bool dragSelection = std::hypot(currentX - startX, currentY - startY) > 0.001;
                 const double minX = std::min(startX, currentX); const double maxX = std::max(startX, currentX);
                 const double minY = std::min(startY, currentY); const double maxY = std::max(startY, currentY);
-                for (size_t i = 0; i < particles.size(); ++i)
+                for (size_t i = 0; i < posX.size(); ++i)
                 {
-                    const auto &pos = particles[i].GetPosition();
+                    const float posXValue = posX[i];
+                    const float posYValue = posY[i];
                     const bool inside = dragSelection
-                        ? (minX <= pos[0] && pos[0] <= maxX && minY <= pos[1] && pos[1] <= maxY)
-                        : (std::fabs(pos[0] - currentX) <= radius * 2.0 && std::fabs(pos[1] - currentY) <= radius * 2.0);
+                        ? (minX <= posXValue && posXValue <= maxX && minY <= posYValue && posYValue <= maxY)
+                        : (std::fabs(posXValue - currentX) <= radius * 2.0 && std::fabs(posYValue - currentY) <= radius * 2.0);
                     if (inside)
                     {
                         world.selected.push_back(static_cast<int>(i));
@@ -273,6 +287,22 @@ void RunMainLoop(GLFWwindow* window,
             for (int idx : world.selected) if (idx >= 0 && static_cast<size_t>(idx) < particles.size()) indicesToRemove.push_back(static_cast<size_t>(idx));
             RemoveParticlesByIndices(particles, posX, posY, velX, velY, colorIDs, indicesToRemove);
             world.selected.clear(); world.selectedMarkerSizes.clear(); subPanel.ResetButton(deleteButton);
+        }
+
+        if (panel.IsButtonDown(clearAllButton))
+        {
+            particles.clear();
+            posX.clear();
+            posY.clear();
+            velX.clear();
+            velY.clear();
+            colorIDs.clear();
+            circles.clear();
+            world.selected.clear();
+            world.selectedMarkerSizes.clear();
+            neighborList.clear();
+            particleIndices.clear();
+            panel.ResetButton(clearAllButton);
         }
 
         // Spawn particles: APPEND to SoA buffers to preserve current simulated positions.
