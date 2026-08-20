@@ -142,6 +142,7 @@ namespace UI
             std::vector<float> selectedMarkerSizes;
 
             World(); // Default world constructor
+            void SetAspect(float width, float height) { aspect = (height > 0.0f) ? (width / height) : 1.0f; }
             void LeftDrag(GLFWwindow *window, GLuint shader); // Drag callback
             void DisplaySelection(GLuint shader, const body::Body *bodies, size_t count); // Render little boxes around selected particles
             void DisplayAreaSelection(GLuint shader); // Render the persistent right-click area selection rectangle
@@ -296,6 +297,7 @@ namespace UI
 
             FT_Library library; // Freetype library instance
             FT_Face face; // Freetype font instance
+            int lastLoadedPixelSize = 0;
 
             bool startDrawingTextAtCenter; // If center should be the center of text or the leftmost portion/where drawing starts
 
