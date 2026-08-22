@@ -14,12 +14,18 @@ if(WIN32)
         "${CMAKE_SOURCE_DIR}/thirdparty"
         "${CMAKE_SOURCE_DIR}/thirdparty/freetype2"
     )
+
+    find_package(OpenGL REQUIRED)
+    find_package(GLEW REQUIRED)
+    find_package(glfw3 REQUIRED)
+    find_package(Freetype REQUIRED)
+
     target_compile_definitions(UI PRIVATE GLFW_DLL)
     target_link_libraries(UI PRIVATE
-        "${CMAKE_SOURCE_DIR}/thirdparty/glfw3.dll"
-        "${CMAKE_SOURCE_DIR}/thirdparty/glew32.dll"
-        "${CMAKE_SOURCE_DIR}/thirdparty/freetype.dll"
-        opengl32
+        OpenGL::GL
+        GLEW::GLEW
+        glfw
+        Freetype::Freetype
         gdi32
     )
 else()

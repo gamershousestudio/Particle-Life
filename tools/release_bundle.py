@@ -50,15 +50,58 @@ def platform_name() -> str:
 
 def windows_deps(binary: Path) -> list[Path]:
     # For a portable Windows build, the dependencies must be copied next to the
-    # EXE. This list is intentionally conservative: it catches the common
-    # runtime DLLs produced by MinGW and the project’s bundled assets.
-    candidates = [
-        binary.parent / "glfw3.dll",
-        binary.parent / "glew32.dll",
-        binary.parent / "freetype.dll",
-        binary.parent / "opengl32.dll",
+    # EXE. Prefer DLLs alongside the binary and then fall back to DLLs on the
+    # current PATH so this works on a normal Windows dev machine without
+    # hardcoding repo-local placeholders.
+    dll_names = [
+        "glfw3.dll",
+        "libglfw-3.dll",
+        "glew32.dll",
+        "libglew32.dll",
+        "libGLEW_2_2.dll",
+        "freetype.dll",
+        "libfreetype-6.dll",
+        "libfreetype.dll",
+        "opengl32.dll",
+        "libgcc_s_seh-1.dll",
+        "libgcc_s_dw2-1.dll",
+        "libstdc++-6.dll",
+        "libwinpthread-1.dll",
     ]
-    return [p for p in candidates if p.exists()]
+
+    candidates = [binary.parent / name for name in dll_names]
+
+    env_path = os.environ.get("PATH", "")
+    for entry in env_path.split(os.pathsep):
+        if not entry:
+            continue
+        path = Path(entry)
+        if not path.exists():
+            continue
+        for name in dll_names:
+            candidates.append(path / name)
+
+    for base in [
+        Path("C:/Windows/System32"),
+        Path("C:/Windows/SysWOW64"),
+        Path("C:/Windows"),
+        Path("C:/MinGW/bin"),
+        Path("C:/msys64/usr/bin"),
+        Path("C:/msys64/mingw64/bin"),
+    ]:
+        if not base.exists():
+            continue
+        for name in dll_names:
+            candidates.append(base / name)
+
+    found: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve(strict=False)
+        if resolved.exists() and resolved not in seen:
+            found.append(resolved)
+            seen.add(resolved)
+    return found
 
 
 def linux_deps(binary: Path) -> list[Path]:

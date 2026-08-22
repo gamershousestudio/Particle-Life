@@ -13,11 +13,15 @@ target_include_directories(ParticleRenderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ParticleRenderer PUBLIC Body)
 
 if(WIN32)
+    find_package(OpenGL REQUIRED)
+    find_package(GLEW REQUIRED)
+    find_package(glfw3 REQUIRED)
+
     target_compile_definitions(ParticleRenderer PRIVATE GLFW_DLL)
     target_link_libraries(ParticleRenderer PRIVATE
-        "${CMAKE_SOURCE_DIR}/thirdparty/glfw3.dll"
-        "${CMAKE_SOURCE_DIR}/thirdparty/glew32.dll"
-        opengl32
+        OpenGL::GL
+        GLEW::GLEW
+        glfw
         gdi32
     )
 else()

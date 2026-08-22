@@ -67,31 +67,40 @@ add_custom_target(release_bundle
 
 # SINGLE CONSOLIDATED INCLUDE AND LINK BLOCK
 if(WIN32)
-    # FORCE the compiler to bake libgcc, libstdc++, and winpthreads directly inside your .exe
+    # Keep the Windows build portable and compatible with normal MinGW installs.
+    # The app is expected to be distributed with DLLs alongside the EXE, not
+    # with repo-local placeholders.
     set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -static")
 
-    # Your existing Windows configuration follows completely untouched
     target_include_directories(ParticleLife PRIVATE 
         src
         dependencies
         dependencies/Body
+        dependencies/ParticleCompute
         dependencies/ParticleRenderer
         dependencies/UI
         thirdparty
     )
-    
+
+    find_package(OpenGL REQUIRED)
+    find_package(GLEW REQUIRED)
+    find_package(glfw3 REQUIRED)
+    find_package(Freetype REQUIRED)
+
     target_compile_definitions(ParticleLife PRIVATE GLFW_DLL)
     target_compile_definitions(ParticleRenderer PRIVATE GLFW_DLL)
     target_compile_definitions(UI PRIVATE GLFW_DLL)
-    
+
     target_link_libraries(ParticleLife PRIVATE
         ParticleRenderer
         Body
         UI
-        "${CMAKE_SOURCE_DIR}/thirdparty/glfw3.dll"
-        "${CMAKE_SOURCE_DIR}/thirdparty/glew32.dll"
-        "${CMAKE_SOURCE_DIR}/thirdparty/freetype.dll"
-        opengl32
+        ParticleCompute
+        SimConfigLib
+        glfw
+        OpenGL::GL
+        GLEW::GLEW
+        Freetype::Freetype
         gdi32
     )
 else()
